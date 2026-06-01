@@ -11,6 +11,7 @@ class BalanceCalibration:
                  coefficient_matrix: np.ndarray,
                  math_model_type: str,
                  component_names: list,  # e.g. ["N1", "N2", "Y1", "Y2", "AF", "RM"]
+                 bias_vector: np.ndarray = None,
                  transformation_matrix: np.ndarray = None,  # Optional 5F/1M -> 3F/3M matrix
                  author: str = "Unknown"):
         self.uuid = str(uuid.uuid4())
@@ -18,6 +19,13 @@ class BalanceCalibration:
         self.author = author
         self.math_model_type = math_model_type
         self.coefficient_matrix = coefficient_matrix
+
+        # Default to a zero vector if no bias is provided
+        if bias_vector is None:
+            self.bias_vector = np.zeros(6)
+        else:
+            self.bias_vector = bias_vector
+
         self.component_names = component_names
         self.transformation_matrix = transformation_matrix
 
@@ -27,6 +35,7 @@ class BalanceCalibration:
             "timestamp": self.timestamp,
             "author": self.author,
             "math_model_type": self.math_model_type,
+            "bias_vector": self.bias_vector,
             "component_names": self.component_names,
             "coefficient_matrix": self.coefficient_matrix.tolist(),
             "transformation_matrix": self.transformation_matrix.tolist() if self.transformation_matrix is not None else None
@@ -43,6 +52,7 @@ class BalanceCalibration:
         instance = cls(
             coefficient_matrix=np.array(data["coefficient_matrix"]),
             math_model_type=data["math_model_type"],
+            bias_vector=data["bias_vector"],
             component_names=data["component_names"],
             transformation_matrix=np.array(data["transformation_matrix"]),
             author=data.get("author", "Unknown")
