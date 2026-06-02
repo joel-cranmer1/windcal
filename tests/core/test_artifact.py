@@ -1,6 +1,7 @@
 import os
 import unittest
 import numpy as np
+import tempfile
 
 from windcal.core.artifact import BalanceCalibration
 
@@ -13,10 +14,36 @@ class TestBalanceCalibration(unittest.TestCase):
         cls.fixture_dir = os.path.join(cls.base_dir, 'fixtures')
 
     def test_load_valid_file(self):
-        self.assertEqual(True, False)  # add assertion here
+        file_path = os.path.join(self.fixture_dir, "Test_balance_cal.json")
+        Cal = BalanceCalibration.load(file_path)
+        self.assertEqual(Cal.__class__.__name__, "BalanceCalibration")
+        self.assertEqual(Cal.coefficient_matrix[1, 3], 0.48158)
+
+    def test_save_cal_file(self):
+        # dummy 6x6 matrix
+        C = np.array([
+            [0.21341, 0.65599, 0.16580, 0.69299, 0.08340, 0.27650],
+            [0.56696, 0.26050, 0.39282, 0.48158, 0.28395, 0.54540],
+            [0.51717, 0.70352, 0.75610, 0.00266, 0.15926, 0.31440],
+            [0.88432, 0.71919, 0.77881, 0.40355, 0.84471, 0.63410],
+            [0.81589, 0.62132, 0.77874, 0.27097, 0.45457, 0.47010],
+            [0.58883, 0.41102, 0.39994, 0.16626, 0.14407, 0.95258]
+        ])
+        bias = np.array([0, 0, 0, 0, 0, 0])
+        x = BalanceCalibration.create_5f1m_transformation_matrix(1.5, 1.5, 1.25, 1.25)
+        cal = BalanceCalibration(C, "LinearModel", ["N1", "N2", "Y1", "Y2", "AF", "RM"], bias, x, "J. Cranmer")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            demo_file = os.path.join(temp_dir, "tmp_file.json")
+            cal.save(demo_file)
+
+            with open(demo_file) as f:
+                lines = f.readlines()
+
+            self.assertEqual(len(lines), 122)
 
 
-class Test1F5MTransformationMatrix(unittest.TestCase):
+class Test5F1MTransformationMatrix(unittest.TestCase):
 
     def test_identity_passthrough(self):
         """AF and RM should pass through unchanged."""
