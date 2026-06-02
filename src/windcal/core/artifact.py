@@ -35,7 +35,7 @@ class BalanceCalibration:
             "timestamp": self.timestamp,
             "author": self.author,
             "math_model_type": self.math_model_type,
-            "bias_vector": self.bias_vector,
+            "bias_vector": self.bias_vector.tolist(),   # ndarray should be .tolist()ed prior to json.dump
             "component_names": self.component_names,
             "coefficient_matrix": self.coefficient_matrix.tolist(),
             "transformation_matrix": self.transformation_matrix.tolist() if self.transformation_matrix is not None else None
@@ -52,7 +52,7 @@ class BalanceCalibration:
         instance = cls(
             coefficient_matrix=np.array(data["coefficient_matrix"]),
             math_model_type=data["math_model_type"],
-            bias_vector=data["bias_vector"],
+            bias_vector=np.array(data["bias_vector"]),
             component_names=data["component_names"],
             transformation_matrix=np.array(data["transformation_matrix"]),
             author=data.get("author", "Unknown")
