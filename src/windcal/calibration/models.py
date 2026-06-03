@@ -12,19 +12,23 @@ class CalibrationMathModel(ABC):
         pass
 
     @abstractmethod
-    def reduce(self, coefficient_matrix: np.ndarray, voltages: np.ndarray) -> np.ndarray:
+    def reduce(self, coefficient_matrix: np.ndarray, bias_vector: np.ndarray, voltages: np.ndarray) -> np.ndarray:
         """Inverse function: calculates loads from voltages and the matrix."""
         pass
 
 
 class LinearModel(CalibrationMathModel):
-    """A simple 6x6 linear regression model."""
     """A simple 6x6 linear regression model with a bias (intercept) term."""
 
     def fit(self, data: CalibrationDataSet) -> tuple[np.ndarray, np.ndarray]:
         """Calculates the calibration matrix and bias vector.
 
-        Uses least-squares to solve the augmented system [V | 1] * [C | B]^T = F.
+        Uses least-squares to solve the system [R] = [a] + [C][G]. (Eq-3.1.8)
+        Where:
+        - R is the bridge output,
+        - a is the intercepts (bias),
+        - C is calibration matrix, and
+        - G is the component load matrix
 
         Args:
             data: A CalibrationDataSet instance containing the N x 6 loads
@@ -35,21 +39,26 @@ class LinearModel(CalibrationMathModel):
                 - A 6x6 numpy array representing the calibration matrix C.
                 - A 1D numpy array of length 6 representing the bias vector B.
         """
-        N = data.voltages.shape[0]
 
-        # Pad voltages with a column of 1s to solve for the intercept (bias)
-        # V_aug shape: (N, 7)
-        V_aug = np.hstack([data.voltages, np.ones((N, 1))])
+        # Extract inputs
+        G = data.loads  # shape (N, 6)
+        R = data.voltages  # shape (N, 6)
 
-        # Solve V_aug * C_aug^T = F
-        C_aug_T, _, _, _ = np.linalg.lstsq(V_aug, data.loads, rcond=None)
+        # Validate shapes (optional but useful)
+        if G.shape != R.shape or G.shape[1] != 6:
+            raise ValueError("loads and voltages must both be N x 6 arrays")
 
-        # Transpose back. C_aug is now a 6x7 matrix.
-        C_aug = C_aug_T.T
+        # Add bias column (intercept term)
+        ones = np.ones((G.shape[0], 1))
+        G_aug = np.hstack((ones, G))   # shape (N, 7)
 
-        # The first 6 columns are the sensitivities (C), the 7th is the bias (B)
-        C = C_aug[:, :6]
-        bias = C_aug[:, 6]
+        # Solve least squares: G_aug * X = R
+        # X will be shape (7, 6)
+        X, residuals, rank, s = np.linalg.lstsq(G_aug, R, rcond=None)
+
+        # Extract bias and calibration matrix
+        bias = X[0, :]  # shape (6,)
+        C = X[1:, :].T  # shape (6, 6) and transpose
 
         return C, bias
 

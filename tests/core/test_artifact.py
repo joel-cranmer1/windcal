@@ -17,7 +17,12 @@ class TestBalanceCalibration(unittest.TestCase):
         file_path = os.path.join(self.fixture_dir, "Test_balance_cal.json")
         Cal = BalanceCalibration.load(file_path)
         self.assertEqual(Cal.__class__.__name__, "BalanceCalibration")
-        self.assertEqual(Cal.coefficient_matrix[1, 3], 0.48158)
+        self.assertEqual(Cal.coefficient_matrix[1, 3], 0.024591532002882124)
+
+    def test_load_invalid_file(self):
+        file_path = os.path.join(self.fixture_dir, "Test_bad_cal.json")
+        Cal = BalanceCalibration.load(file_path)
+        self.assertEqual(Cal.__class__.__name__, "NoneType")
 
     def test_save_cal_file(self):
         # dummy 6x6 matrix
@@ -40,7 +45,7 @@ class TestBalanceCalibration(unittest.TestCase):
             with open(demo_file) as f:
                 lines = f.readlines()
 
-            self.assertEqual(len(lines), 122)
+            self.assertEqual(len(lines), 126)
 
 
 class Test5F1MTransformationMatrix(unittest.TestCase):

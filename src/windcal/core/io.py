@@ -3,16 +3,17 @@ import pandas as pd
 
 # The global standard channel order for WindCal
 STANDARD_CHANNELS = ['NF', 'SF', 'AF', 'PM', 'RM', 'YM']
-BALANCE_CHANNELS = ['NF', 'N1', 'N2', 'SF', 'Y1', 'Y2', 'AX', 'AF', 'PM', 'PF', 'PA', 'YF', 'YA', 'RM', 'YM']
+BALANCE_CHANNELS = ['NF', 'N1', 'N2', 'SF', 'Y1', 'Y2', 'PF', 'PA', 'YF', 'YA', 'PM', 'AX', "AF", 'RM', 'YM']
 VOLTAGE_CHANNELS = ['V1', 'V2', 'V3', 'V4', 'V5', 'V6']
 
 
 class CalibrationDataSet:
     """Holds known applied loads and resultant voltage vectors for calibration."""
 
-    def __init__(self, loads: np.ndarray, voltages: np.ndarray):
+    def __init__(self, loads: np.ndarray, voltages: np.ndarray, channels: list):
         self.loads = loads
         self.voltages = voltages
+        self.channels = channels
         self.validate()
 
     def validate(self):
@@ -39,4 +40,4 @@ class CalibrationDataSet:
         loads = df[load_cols].to_numpy()
         voltages = df[volt_cols].to_numpy()
 
-        return cls(loads, voltages)
+        return cls(loads, voltages, load_cols)

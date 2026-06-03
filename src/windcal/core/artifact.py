@@ -1,6 +1,7 @@
 import json
 import uuid
 from datetime import datetime
+from typing import Union, Tuple
 import numpy as np
 
 
@@ -13,7 +14,11 @@ class BalanceCalibration:
                  component_names: list,  # e.g. ["N1", "N2", "Y1", "Y2", "AF", "RM"]
                  bias_vector: np.ndarray = None,
                  transformation_matrix: np.ndarray = None,  # Optional 5F/1M -> 3F/3M matrix
-                 author: str = "Unknown"):
+                 author: str = "Unknown",
+                 balance_info: dict = None,  # Holds type, manufacturer, serial_number, diameter, etc.
+                 max_loads: dict = None,     # Holds limit loads and units
+                 distances: tuple = None,     # Holds the (X1-X4) locations for conversion
+                 ):
         self.uuid = str(uuid.uuid4())
         self.timestamp = datetime.now().isoformat()
         self.author = author
@@ -29,16 +34,24 @@ class BalanceCalibration:
         self.component_names = component_names
         self.transformation_matrix = transformation_matrix
 
+        self.balance_info = balance_info if balance_info is not None else {}
+        self.max_loads = max_loads if max_loads is not None else {}
+        self.distances = distances if distances is not None else {}
+
     def save(self, filepath: str):
         data = {
+            "balance_calibration": True,
             "uuid": self.uuid,
             "timestamp": self.timestamp,
             "author": self.author,
+            "balance": self.balance_info,
+            "max_loads": self.max_loads,
+            "distances": self.distances,
             "math_model_type": self.math_model_type,
-            "bias_vector": self.bias_vector.tolist(),   # ndarray should be .tolist()ed prior to json.dump
+            "bias_vector": self.bias_vector.tolist(),
             "component_names": self.component_names,
             "coefficient_matrix": self.coefficient_matrix.tolist(),
-            "transformation_matrix": self.transformation_matrix.tolist() if self.transformation_matrix is not None else None
+            "transformation_matrix": self.transformation_matrix.tolist() if self.transformation_matrix is not None else None,
         }
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=4)
@@ -49,13 +62,19 @@ class BalanceCalibration:
         with open(filepath, 'r') as f:
             data = json.load(f)
 
+        if not data.get("balance_calibration"):
+            return None
+
         instance = cls(
             coefficient_matrix=np.array(data["coefficient_matrix"]),
             math_model_type=data["math_model_type"],
             bias_vector=np.array(data["bias_vector"]),
             component_names=data["component_names"],
             transformation_matrix=np.array(data["transformation_matrix"]),
-            author=data.get("author", "Unknown")
+            author=data.get("author", "Unknown"),
+            balance_info=data.get("balance"),
+            max_loads=data.get("max_loads"),
+            distances=tuple(data.get("distances"))
         )
         instance.uuid = data["uuid"]  # Restore exact UUID
         instance.timestamp = data["timestamp"]
@@ -63,10 +82,10 @@ class BalanceCalibration:
 
     @staticmethod
     def create_5f1m_transformation_matrix(
-            x_nf_fore: float,
-            x_nf_aft: float,
-            x_sf_fore: float,
-            x_sf_aft: float
+            x_nf_fore: Union[float, Tuple[float, float, float, float]],
+            x_nf_aft: float = None,
+            x_sf_fore: float = None,
+            x_sf_aft: float = None
     ) -> np.ndarray:
         """Generates a 6x6 coordinate transformation matrix for 5F/1M balances.
 
@@ -87,6 +106,9 @@ class BalanceCalibration:
         Returns:
             A 6x6 numpy array representing the geometric transformation matrix.
         """
+        if isinstance(x_nf_fore, (tuple, list)):
+            x_nf_fore, x_nf_aft, x_sf_fore, x_sf_aft = x_nf_fore
+
         T = np.zeros((6, 6))
 
         # 1. Normal Force: NF = NF_fore + NF_aft
@@ -115,10 +137,10 @@ class BalanceCalibration:
 
     @staticmethod
     def create_1f5m_transformation_matrix(
-        x_pm_fore: float,
-        x_pm_aft: float,
-        x_ym_fore: float,
-        x_ym_aft: float
+        x_pm_fore: Union[float, Tuple[float, float, float, float]],
+        x_pm_aft: float = None,
+        x_ym_fore: float = None,
+        x_ym_aft: float = None
     ) -> np.ndarray:
         """Generates a 6x6 coordinate transformation matrix for 1F/5M balances.
 
@@ -139,6 +161,9 @@ class BalanceCalibration:
         Returns:
             A 6x6 numpy array representing the geometric transformation matrix.
         """
+        if isinstance(x_pm_fore, (tuple, list)):
+            x_pm_fore, x_pm_aft, x_ym_fore, x_ym_aft = x_pm_fore
+
         T = np.zeros((6, 6))
 
         # 1. Pitch pair (PM_fore, PM_aft) -> NF, PM
