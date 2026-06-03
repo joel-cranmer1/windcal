@@ -66,21 +66,18 @@ class Test5F1MTransformationMatrix(unittest.TestCase):
         np.testing.assert_array_almost_equal(out, np.zeros(6))
 
     def test_general_case(self):
-        xform = BalanceCalibration.create_5f1m_transformation_matrix(
-            x_nf_fore=0.1,
-            x_nf_aft=0.2,
-            x_sf_fore=0.15,
-            x_sf_aft=0.25
-        )
+        x_n1, x_n2 = 1.5, 1.5
+        x_y1, x_y2 = 1.25, 1.25
 
-        expected_xform = np.array([[1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-                                   [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
-                                   [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-                                   [0.1, -0.2, 0.0, 0.0, 0.0, 0.0],
-                                   [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                                   [0.0, 0.0, -0.15, 0.25, 0.0, 0.0]])
+        # Load components
+        G = np.array([81.4, -70.0, -9.7, 9.0, 5.3, 11.9]).T
 
-        np.testing.assert_allclose(xform, expected_xform, rtol=1e-10, atol=0, strict=True)
+        xform = BalanceCalibration.create_5f1m_transformation_matrix(x_n1, x_n2, x_y1, x_y2)
+        out = xform @ G
+
+        expected = np.array([11.4, -0.7, 5.3, 227.1, 11.9, -23.375]).T
+
+        np.testing.assert_allclose(out, expected, rtol=1e-10, atol=0, strict=True)
 
 
 class Test1F5MTransformationMatrix(unittest.TestCase):
@@ -107,19 +104,18 @@ class Test1F5MTransformationMatrix(unittest.TestCase):
 
     def test_general_case(self):
         """Validate full transformation against manually computed solution."""
-        x_pf, x_pa = -0.5, 1.5
-        x_yf, x_ya = -1.0, 2.0
+        x_pf, x_pa = 1.278, 1.278
+        x_yf, x_ya = 1.274, 1.274
+
+        # Load components
+        G = np.array([-5.71, 5.31, -0.09, -0.10, 0.129, -0.03]).T
 
         xform = BalanceCalibration.create_1f5m_transformation_matrix(x_pf, x_pa, x_yf, x_ya)
+        out = xform @ G
 
-        expected_xform = np.array([[1.0, -1.0, 0.0, 0.0, 0.0, 0.0],
-                                   [0.0, 0.0, 1.0, -1.0, 0.0, 0.0],
-                                   [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-                                   [0.5, 0.5, 0.0, 0.0, 0.0, 0.0],
-                                   [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                                   [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]])
+        expected = np.array([4.3114, -3.9246e-3, 0.129, -0.19999, -0.03, -0.095]).T
 
-        np.testing.assert_allclose(xform, expected_xform, rtol=1e-10, atol=0, strict=True)
+        np.testing.assert_allclose(out, expected, rtol=1e-4, atol=0, strict=True)
 
     def test_invalid_pitch_spacing(self):
         """Should raise if pitch gauges are colocated."""

@@ -72,6 +72,7 @@ class BalanceCalibration:
 
         This matrix resolves raw 5F/1M load components (NF_fore, NF_aft, SF_fore,
         SF_aft, AF, RM) into standard 3F/3M load components (NF, SF, AF, PM, RM, YM).
+        See Annex C
 
         Args:
             x_nf_fore: Distance from the balance electrical center to the forward
@@ -106,10 +107,9 @@ class BalanceCalibration:
         # 5. Rolling Moment: RM = RM
         T[4, 5] = 1.0
 
-        # 6. Yawing Moment: YM = -(SF_fore * x_sf_fore) - (SF_aft * x_sf_aft)
-        # (Standard RHR convention: positive force forward of CG yields negative yaw moment)
-        T[5, 2] = -x_sf_fore
-        T[5, 3] = x_sf_aft
+        # 6. Yawing Moment: YM = (SF_fore * x_sf_fore) + (SF_aft * x_sf_aft)
+        T[5, 2] = x_sf_fore
+        T[5, 3] = -x_sf_aft
 
         return T
 
@@ -124,6 +124,7 @@ class BalanceCalibration:
 
         This matrix resolves raw 1F/5M load components (PM_fore, PM_aft, YM_fore,
         YM_aft, AF, RM) into standard 3F/3M load components (NF, SF, AF, PM, RM, YM).
+        See Annex C
 
         Args:
             x_pm_fore: Distance from the balance electrical center to the forward
@@ -145,26 +146,26 @@ class BalanceCalibration:
         if abs(dx_pm) < 1e-12:
             raise ValueError("x_pm_fore and x_pm_aft must be distinct.")
 
-        # NF = (PM_fore - PM_aft) / dx_pm
-        T[0, 0] = 1.0 / dx_pm  # PM_fore
-        T[0, 1] = -1.0 / dx_pm  # PM_aft
+        # NF = (PM_aft - PM_fore) / dx_pm
+        T[0, 0] = -1.0 / dx_pm  # PM_fore
+        T[0, 1] = 1.0 / dx_pm  # PM_aft
 
-        # PM = PM_fore + NF * x_pm_fore
-        T[3, 0] = 1.0 + x_pm_fore / dx_pm
-        T[3, 1] = -x_pm_fore / dx_pm
+        # PM = (x_pm_aft * (PM_fore) + x_pm_fore * (PM_aft)) / dx_pm
+        T[3, 0] = x_pm_aft / dx_pm  # PM_fore
+        T[3, 1] = x_pm_fore / dx_pm  # PM_aft
 
         # 2. Yaw pair (YM_fore, YM_aft) -> SF, YM
         dx_ym = x_ym_aft + x_ym_fore
         if abs(dx_ym) < 1e-12:
             raise ValueError("x_ym_fore and x_ym_aft must be distinct.")
 
-        # SF = (YM_fore - YM_aft) / dx_ym
-        T[1, 2] = 1.0 / dx_ym  # YM_fore
-        T[1, 3] = -1.0 / dx_ym  # YM_aft
+        # SF = (YM_aft - YM_fore) / dx_ym
+        T[1, 2] = -1.0 / dx_ym  # YM_fore
+        T[1, 3] = 1.0 / dx_ym  # YM_aft
 
-        # YM = YM_fore + SF * x_ym_fore
-        T[5, 2] = 1.0 + x_ym_fore / dx_ym
-        T[5, 3] = -x_ym_fore / dx_ym
+        # YM = (x_ym_fore * (YM_aft) + x_ym_aft * (YM_fore)) / dx_ym
+        T[5, 2] = x_ym_aft / dx_ym  # YM_fore
+        T[5, 3] = x_ym_fore / dx_ym  # YM_aft
 
         # 3. Axial Force: AF = AF
         T[2, 4] = 1.0
