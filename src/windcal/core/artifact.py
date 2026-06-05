@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Union, Tuple
 import numpy as np
 
+from windcal.core.metadata import CalibrationMetadata
+
 
 class BalanceCalibration:
     """The immutable artifact containing the calibration matrix and metadata."""
@@ -14,14 +16,10 @@ class BalanceCalibration:
                  component_names: list,  # e.g. ["N1", "N2", "Y1", "Y2", "AF", "RM"]
                  bias_vector: np.ndarray = None,
                  transformation_matrix: np.ndarray = None,  # Optional 5F/1M -> 3F/3M matrix
-                 author: str = "Unknown",
-                 balance_info: dict = None,  # Holds type, manufacturer, serial_number, diameter, etc.
-                 max_loads: dict = None,     # Holds limit loads and units
-                 distances: tuple = None,     # Holds the (X1-X4) locations for conversion
+                 metadata: CalibrationMetadata = None,
                  ):
         self.uuid = str(uuid.uuid4())
         self.timestamp = datetime.now().isoformat()
-        self.author = author
         self.math_model_type = math_model_type
         self.coefficient_matrix = coefficient_matrix
 
@@ -34,9 +32,17 @@ class BalanceCalibration:
         self.component_names = component_names
         self.transformation_matrix = transformation_matrix
 
-        self.balance_info = balance_info if balance_info is not None else {}
-        self.max_loads = max_loads if max_loads is not None else {}
-        self.distances = distances if distances is not None else {}
+        # Unpack CalibrationMetadata
+        if metadata is not None:
+            self.author = metadata.author
+            self.balance_info = metadata.balance_info
+            self.max_loads = metadata.max_loads
+            self.distances = metadata.distances
+        else:
+            self.author = "Unknown"
+            self.balance_info = {}
+            self.max_loads = {}
+            self.distances = ()
 
     def save(self, filepath: str):
         data = {
@@ -71,10 +77,12 @@ class BalanceCalibration:
             bias_vector=np.array(data["bias_vector"]),
             component_names=data["component_names"],
             transformation_matrix=np.array(data["transformation_matrix"]),
-            author=data.get("author", "Unknown"),
-            balance_info=data.get("balance"),
-            max_loads=data.get("max_loads"),
-            distances=tuple(data.get("distances"))
+            metadata=CalibrationMetadata(
+                author=data.get("author", "Unknown"),
+                balance_info=data.get("balance"),
+                max_loads=data.get("max_loads"),
+                distances=tuple(data.get("distances"))
+            )
         )
         instance.uuid = data["uuid"]  # Restore exact UUID
         instance.timestamp = data["timestamp"]
@@ -137,10 +145,10 @@ class BalanceCalibration:
 
     @staticmethod
     def create_1f5m_transformation_matrix(
-        x_pm_fore: Union[float, Tuple[float, float, float, float]],
-        x_pm_aft: float = None,
-        x_ym_fore: float = None,
-        x_ym_aft: float = None
+            x_pm_fore: Union[float, Tuple[float, float, float, float]],
+            x_pm_aft: float = None,
+            x_ym_fore: float = None,
+            x_ym_aft: float = None
     ) -> np.ndarray:
         """Generates a 6x6 coordinate transformation matrix for 1F/5M balances.
 
