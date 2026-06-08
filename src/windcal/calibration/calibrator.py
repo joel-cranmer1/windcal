@@ -9,6 +9,11 @@ class Calibrator:
 
     def __init__(self, math_model: CalibrationMathModel):
         self.math_model = math_model
+        self.validate_model()
+
+    def validate_model(self):
+        if not issubclass(self.math_model.__class__, CalibrationMathModel):
+            raise TypeError("math_model must ve a CalibrationMathModel")
 
     def generate_calibration(
             self, data: CalibrationDataSet,
