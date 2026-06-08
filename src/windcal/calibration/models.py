@@ -12,7 +12,7 @@ class CalibrationMathModel(ABC):
         pass
 
     @abstractmethod
-    def reduce(self, coefficient_matrix: np.ndarray, bias_vector: np.ndarray, voltages: np.ndarray) -> np.ndarray:
+    def reduce(self, calibration_matrix: np.ndarray, bias_vector: np.ndarray, voltages: np.ndarray) -> np.ndarray:
         """Inverse function: calculates loads from voltages and the matrix."""
         pass
 
@@ -25,14 +25,14 @@ class LinearModel(CalibrationMathModel):
 
         Uses least-squares to solve the system [R] = [a] + [C][G]. (Eq-3.1.8)
         Where:
-        - R is the bridge output,
+        - R is the bridge output (voltage),
         - a is the intercepts (bias),
         - C is calibration matrix, and
         - G is the component load matrix
 
         Args:
-            data: A CalibrationDataSet instance containing the N x 6 loads
-                and N x 6 voltages.
+            data: A CalibrationDataSet instance containing the 6 x N loads
+                and 6 x N voltages.
 
         Returns:
             A tuple containing:
@@ -64,21 +64,20 @@ class LinearModel(CalibrationMathModel):
 
     def reduce(
             self,
-            coefficient_matrix: np.ndarray,
+            calibration_matrix: np.ndarray,
             bias_vector: np.ndarray,
             voltages: np.ndarray
     ) -> np.ndarray:
         """Calculates physical loads from voltages using the matrix and bias.
 
         Args:
-            coefficient_matrix: A 6x6 numpy array representing the matrix C.
+            calibration_matrix: A 6x6 numpy array representing the matrix C.
             bias_vector: A 1D numpy array of length 6 representing the bias B.
             voltages: A numpy array of measured voltages (1D or 2D).
 
         Returns:
-            A numpy array of physical loads (F = C * V + B).
+            A numpy array of physical loads (F = C^-1 * (V - B)).
         """
-        if voltages.ndim == 1:
-            return (coefficient_matrix @ voltages) + bias_vector
+        c_inv = np.linalg.inv(calibration_matrix)
 
-        return (coefficient_matrix @ voltages.T).T + bias_vector
+        return (c_inv @ (voltages - bias_vector).T).T
