@@ -62,7 +62,7 @@ class BalanceCalibration:
 
         cx, cy = self.coefficient_matrix.shape
         b_size = self.bias_vector.size
-        tx, ty = self.transformation_matrix.shape
+        tx, ty = self.transformation_matrix.shape if self.transformation_matrix is not None else (0, 0)
         n_size = len(self.component_names)
         if cx != b_size:
             raise ValueError(f"Coefficient matrix shape M x N does not match bias vector size M: ({cx}, {cy}), ({b_size})")
