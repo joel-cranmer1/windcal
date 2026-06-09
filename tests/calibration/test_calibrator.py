@@ -1,13 +1,39 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from windcal.core.artifact import BalanceCalibration
 from windcal.core.io import STANDARD_CHANNELS
 from windcal.calibration.calibrator import Calibrator
 from windcal.calibration.models import *
 
 
 class TestCalibrator(unittest.TestCase):
+    def setUp(self):
+        """Runs before EACH test to ensure isolated, fresh mocks."""
+        # 1. Setup the mock mathematical model
+        self.mock_C = np.eye(6)
+        self.mock_bias = np.zeros(6)
+        self.mock_model = Mock(spec=CalibrationMathModel)
+        self.mock_model.fit.return_value = (self.mock_C, self.mock_bias)
+        self.mock_model.__class__.__name__ = "MockModel"
+
+        # 2. Instantiate the system under test
+        self.calibrator = Calibrator(math_model=self.mock_model)
+
+        # 3. Setup common fake data
+        self.mock_data = Mock()
+        self.mock_data.channels = STANDARD_CHANNELS
+
+        self.mock_metadata = Mock()
+        self.mock_metadata.distances = "mock_distances"
+
+        # 4. Patch BalanceCalibration manually
+        # Create the patcher
+        patcher = patch('windcal.calibration.calibrator.BalanceCalibration', autospec=True)
+        # Start the patcher and save the mock to a class instance variable
+        self.MockBalanceCalibration = patcher.start()
+        # Ensure the patcher stops after the test finishes, even if the test fails
+        self.addCleanup(patcher.stop)
+
     def test_model_initialization(self):
 
         calibrator = Calibrator(math_model=LinearModel())
@@ -22,99 +48,61 @@ class TestCalibrator(unittest.TestCase):
             Calibrator(math_model="not a model")
 
     def test_generate_calls_fit(self):
-        """Validate Calibrator calls the fit() method from dependency when generate_calibration() is called"""
-        # Create fake model
-        mock_model = Mock(spec=CalibrationMathModel)
-
-        # Define what fit() should return
-        mock_model.fit.return_value = ("C", "a")
-
-        # Inject into system under test
-        calibrator = Calibrator(math_model=mock_model)
-
-        # Fake data object
-        data = Mock()
-        data.channels = []
-
-        # Run method
-        calibrator.generate_calibration(data)
-
-        # Verify behavior
-        mock_model.fit.assert_called_once_with(data)
+        """Validate Calibrator calls the fit() method from dependency"""
+        self.calibrator.generate_calibration(self.mock_data)
+        self.mock_model.fit.assert_called_once_with(self.mock_data)
 
     def test_artifact_fields(self):
-        mock_model = Mock(spec=CalibrationMathModel)
-        mock_model.fit.return_value = ("C", "a")
+        self.calibrator.generate_calibration(self.mock_data)
 
-        calibrator = Calibrator(math_model=mock_model)
-
-        data = Mock()
-        data.channels = []
-
-        artifact = calibrator.generate_calibration(data)
-
-        self.assertEqual(artifact.coefficient_matrix, "C")
-        self.assertEqual(artifact.bias_vector, "a")
-        self.assertEqual(artifact.math_model_type, mock_model.__class__.__name__)
+        # Verify the artifact was instantiated with the data from the math model
+        self.MockBalanceCalibration.assert_called_once_with(
+            coefficient_matrix=self.mock_C,
+            math_model_type='MockModel',
+            component_names=STANDARD_CHANNELS,
+            bias_vector=self.mock_bias,
+            transformation_matrix=None,
+            metadata=None
+        )
 
     def test_no_transform_for_standard_channels(self):
-        mock_model = Mock(spec=CalibrationMathModel)
-        mock_model.fit.return_value = ("C", "a")
+        self.calibrator.generate_calibration(self.mock_data)
 
-        calibrator = Calibrator(mock_model)
-
-        data = Mock()
-        data.channels = STANDARD_CHANNELS
-
-        artifact = calibrator.generate_calibration(data)
-
-        self.assertIsNone(artifact.transformation_matrix)
+        called_kwargs = self.MockBalanceCalibration.call_args[1]
+        self.assertIsNone(called_kwargs.get('transformation_matrix'))
 
     def test_force_balance_transform(self):
-        mock_model = Mock(spec=CalibrationMathModel)
-        mock_model.fit.return_value = ("C", "a")
-
-        calibrator = Calibrator(mock_model)
-
-        data = Mock()
-        data.channels = ["N1"]  # triggers branch
-
-        metadata = Mock()
-        metadata.distances = "dist1"
+        # Override the default mock data for this specific test
+        self.mock_data.channels = ["N1"]
 
         with patch.object(
-                BalanceCalibration,
+                self.MockBalanceCalibration,
                 "create_5f1m_transformation_matrix",
                 return_value="XFORM"
         ) as mock_xform:
-            artifact = calibrator.generate_calibration(data, metadata)
+            self.calibrator.generate_calibration(self.mock_data, self.mock_metadata)
 
-            mock_xform.assert_called_once()
-            mock_xform.assert_called_once_with("dist1")
-            self.assertEqual(artifact.transformation_matrix, "XFORM")
+            mock_xform.assert_called_once_with("mock_distances")
+
+            # Verify the output of the transform was passed to the artifact
+            called_kwargs = self.MockBalanceCalibration.call_args[1]
+            self.assertEqual(called_kwargs.get('transformation_matrix'), "XFORM")
 
     def test_moment_balance_transform(self):
-        mock_model = Mock(spec=CalibrationMathModel)
-        mock_model.fit.return_value = ("C", "a")
-
-        calibrator = Calibrator(mock_model)
-
-        data = Mock()
-        data.channels = ["PF"]  # triggers branch
-
-        metadata = Mock()
-        metadata.distances = "dist2"
+        self.mock_data.channels = ["PF"]
 
         with patch.object(
-                BalanceCalibration,
+                self.MockBalanceCalibration,
                 "create_1f5m_transformation_matrix",
                 return_value="XFORM2"
         ) as mock_xform:
-            artifact = calibrator.generate_calibration(data, metadata)
 
-            mock_xform.assert_called_once()
-            mock_xform.assert_called_once_with("dist2")
-            self.assertEqual(artifact.transformation_matrix, "XFORM2")
+            self.calibrator.generate_calibration(self.mock_data, self.mock_metadata)
+
+            mock_xform.assert_called_once_with("mock_distances")
+
+            called_kwargs = self.MockBalanceCalibration.call_args[1]
+            self.assertEqual(called_kwargs.get('transformation_matrix'), "XFORM2")
 
 
 if __name__ == '__main__':
