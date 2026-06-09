@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+
+from windcal.calibration.models import CalibrationMathModel
 from windcal.core.artifact import BalanceCalibration
 from windcal.core.io import STANDARD_CHANNELS
 
@@ -9,7 +11,7 @@ class DataReducer:
 
     def __init__(self, calibration: BalanceCalibration):
         self.calibration = calibration
-        # Math model instantiation here...
+        self.math_model = CalibrationMathModel.create(calibration.math_model_type)
 
     def process_point(self, voltages: np.ndarray) -> np.ndarray:
         """Fast processing for a single reading (DAQ Loop)."""
@@ -44,4 +46,3 @@ class DataReducer:
             columns = self.calibration.component_names  # Keep original names if already 3F/3M
 
         return pd.DataFrame(resolved_loads, columns=columns, index=voltages_df.index)
-

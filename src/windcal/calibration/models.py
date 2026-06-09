@@ -16,6 +16,23 @@ class CalibrationMathModel(ABC):
         """Inverse function: calculates loads from voltages and the matrix."""
         pass
 
+    # ---------------- ^   Abstract    ^ ----------------
+    # ---------------- v Class Methods v ----------------
+
+    _registry: dict[str, type] = {}
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Register the subclass using its name or a custom identifier
+        cls._registry[cls.__name__] = cls
+
+    @classmethod
+    def create(cls, name: str, *args, **kwargs) -> "CalibrationMathModel":
+        """Create a CalibrationMathModel instance from the class type's string name"""
+        if name not in cls._registry:
+            raise ValueError(f"Unknown model type: {name}")
+        return cls._registry[name](*args, **kwargs)
+
 
 class LinearModel(CalibrationMathModel):
     """A simple 6x6 linear regression model with a bias (intercept) term."""
