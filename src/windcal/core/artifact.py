@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Union, Tuple
 import numpy as np
 
+from windcal.core.io import STANDARD_CHANNELS
 from windcal.core.metadata import CalibrationMetadata
 
 
@@ -43,6 +44,38 @@ class BalanceCalibration:
             self.balance_info = {}
             self.max_loads = {}
             self.distances = ()
+        self.validate()
+
+    def validate(self):
+        """Ensure all provided values make sense and are compatible"""
+        # Not the correct type
+        if not isinstance(self.coefficient_matrix, np.ndarray):
+            raise TypeError("Coefficient matrix should be an np.array")
+        if not isinstance(self.component_names, list):
+            raise TypeError("Component names should be a List")
+
+        # Empty values
+        if len(self.coefficient_matrix.shape) < 1:
+            raise ValueError("Coefficient matrix cannot be empty.")
+        if len(self.component_names) < 1:
+            raise TypeError("Component names cannot be empty")
+
+        cx, cy = self.coefficient_matrix.shape
+        b_size = self.bias_vector.size
+        tx, ty = self.transformation_matrix.shape
+        n_size = len(self.component_names)
+        if cx != b_size:
+            raise ValueError(f"Coefficient matrix shape M x N does not match bias vector size M: ({cx}, {cy}), ({b_size})")
+        if cy < cx:
+            raise ValueError(f"Coefficient matrix shape M x N - M must be less than or equal to N: ({cx}, {cy})")
+        if tx != ty:
+            raise ValueError(f"Transformation matrix shape must be square: ({tx}, {ty})")
+        if cx != n_size:
+            raise ValueError(f"Coefficient matrix shape M x N does not match component names length: ({cx}, {cy}), ({n_size})")
+        if self.component_names != STANDARD_CHANNELS and self.transformation_matrix is None:
+            raise ValueError(f"Transformation matrix is required if balance is Force or Moment type.")
+        if self.transformation_matrix is not None and len(self.distances) != 4:
+            raise ValueError(f"Four balance distances are required with a Transformation matrix: {self.distances}")
 
     def save(self, filepath: str):
         data = {
@@ -72,11 +105,11 @@ class BalanceCalibration:
             return None
 
         instance = cls(
-            coefficient_matrix=np.array(data["coefficient_matrix"]),
-            math_model_type=data["math_model_type"],
-            bias_vector=np.array(data["bias_vector"]),
-            component_names=data["component_names"],
-            transformation_matrix=np.array(data["transformation_matrix"]),
+            coefficient_matrix=np.array(data.get("coefficient_matrix")),
+            math_model_type=data.get("math_model_type"),
+            bias_vector=np.array(data.get("bias_vector")),
+            component_names=data.get("component_names"),
+            transformation_matrix=np.array(data.get("transformation_matrix")),
             metadata=CalibrationMetadata(
                 author=data.get("author", "Unknown"),
                 balance_info=data.get("balance"),

@@ -21,5 +21,10 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
 ]
 
+[project.optional-dependencies]
+test = [
+    "parameterized",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]

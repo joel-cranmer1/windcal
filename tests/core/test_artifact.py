@@ -1,7 +1,10 @@
+import json
 import os
 import unittest
 import numpy as np
 import tempfile
+import copy
+from parameterized import parameterized, param
 
 from windcal.core.artifact import BalanceCalibration
 from windcal.core.metadata import CalibrationMetadata
@@ -18,6 +21,10 @@ class TestBalanceCalibration(unittest.TestCase):
             balance_info={"test_balance": True},
             distances=(1, 2, 3, 4)
         )
+        # Load the base valid file once for all validation tests
+        filepath = os.path.join(cls.fixture_dir, "Test_balance_cal.json")
+        with open(filepath, 'r') as f:
+            cls.valid_cal_data = json.load(f)
 
     def test_load_valid_file(self):
         file_path = os.path.join(self.fixture_dir, "Test_balance_cal.json")
@@ -32,6 +39,56 @@ class TestBalanceCalibration(unittest.TestCase):
 
         self.assertEqual(Cal.__class__.__name__, "NoneType")
         self.assertEqual(Cal, None)
+
+    @parameterized.expand([
+        param("malformed_bias_vector",
+              manipulation=lambda d: d["bias_vector"].pop(),
+              expected_exception=ValueError),
+        param("missing_coefficient_matrix",
+              manipulation=lambda d: d.pop("coefficient_matrix", None),
+              expected_exception=ValueError),
+        param("missing_component_names",
+              manipulation=lambda d: d.pop("component_names", None),
+              expected_exception=TypeError),
+        param("coeff_matrix_bias_vector_mismatch",
+              manipulation=lambda d: d.update({"bias_vector": [1, 2, 3]}),
+              expected_exception=ValueError),
+        param("coeff_matrix_shape_invalid",
+              manipulation=lambda d: d.update({"coefficient_matrix": [[1, 2], [3, 4], [5, 6]]}),
+              expected_exception=ValueError),
+        param("transformation_matrix_not_square",
+              manipulation=lambda d: d.update({"transformation_matrix": [[1, 2, 3], [4, 5, 6]]}),
+              expected_exception=ValueError),
+        param("coeff_matrix_component_names_mismatch",
+              manipulation=lambda d: d.update({"component_names": ["N1", "N2"]}),
+              expected_exception=ValueError),
+        param("distances_incorrect_length_with_transform",
+              manipulation=lambda d: d.update({"distances": (1, 2, 3)}),
+              expected_exception=ValueError),
+        param("transformation_matrix_missing",
+              manipulation=lambda d: d.update({"transformation_matrix": None}),
+              expected_exception=ValueError),
+    ])
+    def test_validation_errors(self, test_name: str, manipulation, expected_exception):
+        """
+        Tests various validation error scenarios when loading a BalanceCalibration file.
+        Each scenario is defined as a parameter, with a specific manipulation to create
+        an invalid file from a valid one.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # create a temp bad file to try loading
+            bad_file = os.path.join(temp_dir, f"tmp_{test_name}.json")
+            bad_data = copy.deepcopy(self.valid_cal_data)
+
+            # Apply the specific manipulation for this test case
+            manipulation(bad_data)
+
+            with open(bad_file, 'w') as f:
+                json.dump(bad_data, f, indent=4)
+
+            # Assert that loading the bad file raises the expected exception
+            with self.assertRaises(expected_exception):
+                Cal = BalanceCalibration.load(bad_file)
 
     def test_save_cal_file(self):
         # dummy 6x6 matrix
