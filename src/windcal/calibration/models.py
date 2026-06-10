@@ -86,6 +86,7 @@ class LinearModel(CalibrationMathModel):
             voltages: np.ndarray
     ) -> np.ndarray:
         """Calculates physical loads from voltages using the matrix and bias.
+        Assumes the data is already aligned with the calibration matrix.
 
         Args:
             calibration_matrix: A 6x6 numpy array representing the matrix C.

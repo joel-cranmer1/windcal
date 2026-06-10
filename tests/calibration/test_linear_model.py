@@ -1,5 +1,7 @@
+import os.path
 import unittest
 from typing import Any
+from pathlib import Path
 
 import numpy as np
 
@@ -28,13 +30,23 @@ class TestLinearModel(unittest.TestCase):
 
         # The error should be caught by CalibrationDataSet first
         with self.assertRaisesRegex(ValueError, "must have exactly 6 channels"):
-            CalibrationDataSet(loads_invalid, voltages_invalid, [])
+            CalibrationDataSet(loads_invalid, voltages_invalid, ['NF', 'SF', 'AF', 'PM', 'RM'])
 
         # Test for shape mismatch between loads and voltages
         loads_valid = np.random.rand(10, 6)
         voltages_mismatch = np.random.rand(11, 6)  # 11 rows instead of 10
         with self.assertRaisesRegex(ValueError, "have the same shape"):
-            CalibrationDataSet(loads_valid, voltages_mismatch, [])
+            CalibrationDataSet(loads_valid, voltages_mismatch, STANDARD_CHANNELS)
+
+    def test_fit_raises_error_no_valid_channels(self):
+        """Tests that fit() raises a ValueError empty channel list"""
+        # Create data with 5 columns instead of 6
+        loads = np.random.rand(6, 6)
+        voltages = np.random.rand(6, 6)
+
+        # The error should be caught by CalibrationDataSet first
+        with self.assertRaisesRegex(ValueError, "No valid channels found for ordering"):
+            CalibrationDataSet(loads, voltages, [])
 
     def test_fit_known_solution(self):
         data, expected_C, expected_a = self._create_simple_dataset()
@@ -112,12 +124,9 @@ class TestLinearModel(unittest.TestCase):
         C = A + B
         col_norms = np.linalg.norm(C, axis=0, keepdims=True)
         C_expected = C / col_norms
-        a_expected = np.random.rand(6) * 5
+        a_expected = np.random.rand(6)
 
-        # loads → identity matrix
         # 2. Create random but realistic loads
-        # Using a larger number of points (n_points > 7) ensures the system
-        # is well-defined for the least-squares solver.
         loads = (np.random.rand(n_points, 6) - 0.5) * 1000
 
         # 3. Calculate the resulting voltages using the model's equation
