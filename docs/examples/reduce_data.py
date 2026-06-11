@@ -9,12 +9,13 @@ def main():
 
     reducer = DataReducer(Cal)
 
-    data = np.array([0.00352692, -0.030615058, -0.002608072, 0.114516169, -0.073077982, 0.963958881])
+    v_head = ["rPA", "rYA", "rPF", "rYF", "rAF", "rRM"]
+    v_data = [0.00352692, -0.030615058, -0.002608072, 0.114516169, -0.073077982, 0.963958881]
+    data = dict(zip(v_head, v_data))
 
-    res = reducer.process_point(data)
+    res = reducer.to_eng_units(data)
 
-    for i in range(len(Cal.component_names)):
-        print(f"{Cal.component_names[i]}: {res[i]}")
+    print(res)
 
 
 if __name__ == '__main__':
