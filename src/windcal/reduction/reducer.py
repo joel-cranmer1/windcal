@@ -36,7 +36,7 @@ class DataReducer:
             return loads
 
         transformed_loads = xform @ self._order_components(loads)
-        return self._label_loads(transformed_loads, STANDARD_CHANNELS)
+        return self._label_loads(transformed_loads, keys=STANDARD_CHANNELS)
 
     def _order_voltages(self, voltages: dict) -> np.ndarray:
         return self._order_components(voltages, pre="r")
@@ -85,7 +85,7 @@ class DataReducer:
             header = self.calibration.component_names
         else:
             _k = len(keys)
-            _l = loads.shape[0]
+            _l = loads.shape[1]
             if _k != _l:
                 raise ValueError(f"Provided Keys are not the same size as the loads: K={_k}; L={_l};")
             header = keys
