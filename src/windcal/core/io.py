@@ -51,7 +51,9 @@ class CalibrationDataSet:
     @classmethod
     def from_csv(cls, filepath: str):
         """Loads calibration data and automatically re-orders columns to match WindCal standard."""
-        df = pd.read_csv(filepath)
+        df = pd.read_csv(filepath, skipinitialspace=True)
+        df.columns = df.columns.str.strip()  # Clean Whitespace
+        df.columns = df.columns.str.upper()
 
         # Find intersection of expected vs actual columns
         cols = set(df.columns)
@@ -61,7 +63,7 @@ class CalibrationDataSet:
 
         # enforce pairing at load time
         for c in BALANCE_CHANNELS:
-            rc = f"r{c}"
+            rc = f"R{c}"
             if c in cols and rc in cols:
                 load_cols.append(c)
                 volt_cols.append(rc)

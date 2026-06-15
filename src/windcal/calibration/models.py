@@ -69,13 +69,34 @@ class LinearModel(CalibrationMathModel):
         ones = np.ones((G.shape[0], 1))
         G_aug = np.hstack((ones, G))   # shape (N, 7)
 
-        # Solve least squares: G_aug * X = R
+        # Solve least-squares: G_aug * X = R
         # X will be shape (7, 6)
         X, residuals, rank, s = np.linalg.lstsq(G_aug, R, rcond=None)
 
         # Extract bias and calibration matrix
         bias = X[0, :]  # shape (6,)
         C = X[1:, :].T  # shape (6, 6) and transpose
+
+        # --- R^2 Calculation ---
+        # 1. Calculate predicted R (R_hat)
+        R_predicted = G_aug @ X  # shape (N, 6)
+
+        # 2. Calculate Residual Sum of Squares (SS_res) per component
+        # axis=0 computes the sum down the columns (for each of the 6 components)
+        ss_res = np.sum((R - R_predicted) ** 2, axis=0)
+
+        # 3. Calculate Total Sum of Squares (SS_tot) per component
+        r_mean = np.mean(R, axis=0)
+        ss_tot = np.sum((R - r_mean) ** 2, axis=0)
+
+        # 4. Calculate R^2 per component
+        # Avoid division by zero if a component has zero variance
+        r2 = np.zeros(6)
+        valid_indices = ss_tot > 0
+        r2[valid_indices] = 1.0 - (ss_res[valid_indices] / ss_tot[valid_indices])
+
+        print("Coefficient of determination (R^2):")
+        print(r2)
 
         return C, bias
 
