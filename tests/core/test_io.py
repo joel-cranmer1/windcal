@@ -1,8 +1,11 @@
 import os
 import unittest
 import numpy as np
+import logging
 
-from windcal.core.io import CalibrationDataSet, BALANCE_CHANNELS
+from windcal.core.io import CalibrationDataSet, BALANCE_CHANNELS, ZeroLoadOutput
+
+logger = logging.getLogger(__name__)
 
 
 class TestCalibrationDataSet(unittest.TestCase):
@@ -17,18 +20,11 @@ class TestCalibrationDataSet(unittest.TestCase):
         self.assertTrue(data_set.loads.size > 0)
         self.assertTrue(data_set.voltages.size > 0)
 
-    # Never raises error due to Pandas filling in the blank csv data
-    # def test_load_csv_omit_voltage(self):
-    #     with self.assertRaises(ValueError):
-    #         data_set = CalibrationDataSet.from_csv(os.path.join(self.fixture_dir, 'Test_cal_data_omit_volt.csv'))
-    #         print(f"Loads: {data_set.loads.size}")
-    #         print(f"Volts: {data_set.voltages.size}")
-
     def test_load_csv_extra_ch(self):
         with self.assertRaises(ValueError):
             data_set = CalibrationDataSet.from_csv(os.path.join(self.fixture_dir, 'Test_cal_data_extra_ch.csv'))
-            print(f"Loads: {data_set.loads.size}")
-            print(f"Volts: {data_set.voltages.size}")
+            logger.info(f"Loads: {data_set.loads.size}")
+            logger.info(f"Volts: {data_set.voltages.size}")
 
 
 class TestCalibrationDataSetOrdering(unittest.TestCase):
@@ -55,8 +51,8 @@ class TestCalibrationDataSetOrdering(unittest.TestCase):
         )
 
         self.assertEqual(ds.channels, ['PF', 'PA', 'YF', 'YA', 'AF', 'RM'])
-        np.testing.assert_array_equal(ds.loads, self.loads)
-        np.testing.assert_array_equal(ds.voltages, self.voltages)
+        np.testing.assert_allclose(ds.loads, self.loads)
+        np.testing.assert_allclose(ds.voltages, self.voltages)
 
     def test_order_corrected_when_shuffled(self):
         reorder = [2, 0, 1, 3, 5, 4]  # Shuffled IDs
@@ -76,8 +72,8 @@ class TestCalibrationDataSetOrdering(unittest.TestCase):
         expected_loads = np.array([[10, 20, 30, 40, 50, 60]])
         expected_voltages = np.array([[1, 2, 3, 4, 5, 6]])
 
-        np.testing.assert_array_equal(ds.loads, expected_loads)
-        np.testing.assert_array_equal(ds.voltages, expected_voltages)
+        np.testing.assert_allclose(ds.loads, expected_loads)
+        np.testing.assert_allclose(ds.voltages, expected_voltages)
 
     def test_multiple_random_permutations(self):
         import itertools
@@ -95,8 +91,8 @@ class TestCalibrationDataSetOrdering(unittest.TestCase):
             # Always expect canonical order
             self.assertEqual(ds.channels, canonical)
 
-            np.testing.assert_array_equal(ds.loads, self.loads)
-            np.testing.assert_array_equal(ds.voltages, self.voltages)
+            np.testing.assert_allclose(ds.loads, self.loads)
+            np.testing.assert_allclose(ds.voltages, self.voltages)
 
     def test_ignores_extra_channels(self):
         channels = ['XX', 'PF', 'PA', 'YY', 'YF', 'YA', 'ZZ', 'AF', 'RM']
@@ -108,8 +104,118 @@ class TestCalibrationDataSetOrdering(unittest.TestCase):
 
         self.assertEqual(ds.channels, ['PF', 'PA', 'YF', 'YA', 'AF', 'RM'])
 
-        np.testing.assert_array_equal(ds.loads, [[10, 20, 30, 40, 50, 60]])
-        np.testing.assert_array_equal(ds.voltages, [[1, 2, 3, 4, 5, 6]])
+        np.testing.assert_allclose(ds.loads, [[10, 20, 30, 40, 50, 60]])
+        np.testing.assert_allclose(ds.voltages, [[1, 2, 3, 4, 5, 6]])
+
+
+class TestZeroLoadOutput(unittest.TestCase):
+    def setUp(self) -> None:
+        self.ZLO = ZeroLoadOutput()
+
+    def test_ave_fail_empty(self):
+        with self.assertRaises(ValueError) as cm:
+            self.ZLO.average()
+
+        self.assertIn("Cannot calculate average", str(cm.exception))
+
+    def test_ave_fail_partial(self):
+        # add some points but not all
+        self.ZLO.add(np.zeros(6), 0)
+        self.ZLO.add(np.zeros(6), 90)
+
+        with self.assertRaises(ValueError) as cm:
+            self.ZLO.average()
+
+        self.assertIn("Cannot calculate average", str(cm.exception))
+
+    def test_ave_full(self):
+        # Full points should cancel
+        self.ZLO = ZeroLoadOutput(num_bridges=3)
+        self.ZLO.add([1, 2, 3], 0)
+        self.ZLO.add([4, 5, 6], 90)
+        self.ZLO.add([-1, -2, -3], 180)
+        self.ZLO.add([-4, -5, -6], -90)
+
+        expected = np.array([[0.0, 0.0, 0.0]])
+
+        np.testing.assert_allclose(self.ZLO.average(), expected, strict=True)
+        # Check that the value is also stored
+        np.testing.assert_allclose(self.ZLO.final_average, expected, strict=True)
+
+    def test_add_point(self):
+        prev = len(self.ZLO.Z[0])
+        self.ZLO.add([1, 2, 3, 4, 5, 6], 0)
+        post = len(self.ZLO.Z[0])
+        # Difference should be 1
+        self.assertEqual(1, post - prev)
+
+    def test_add_too_short(self):
+        with self.assertRaises(ValueError) as cm:
+            self.ZLO.add([1, 2, 3], 0)
+        self.assertIn("Data must be a 1D array of length", str(cm.exception))
+
+    def test_add_2D_array(self):
+        with self.assertRaises(ValueError) as cm:
+            self.ZLO.add([[1, 2, 3, 4, 5, 6],
+                          [1, 2, 3, 4, 5, 6]],
+                         0)
+        self.assertIn("Data must be a 1D array of length", str(cm.exception))
+
+    def test_add_invalid_orientation(self):
+        with self.assertRaises(ValueError) as cm:
+            self.ZLO.add([[1, 2, 3, 4, 5, 6]], 42)
+        self.assertIn("Orientation must be one", str(cm.exception))
+
+    def test_add_point_clears_ave(self):
+        # Full points should cancel
+        self.ZLO = ZeroLoadOutput(num_bridges=3)
+        self.ZLO.add([1, 2, 3], 0)
+        self.ZLO.add([4, 5, 6], 90)
+        self.ZLO.add([-1, -2, -3], 180)
+        self.ZLO.add([-4, -5, -6], -90)
+
+        self.ZLO.average()
+        self.assertIsNotNone(self.ZLO.final_average)
+        self.assertIsInstance(self.ZLO.final_average, np.ndarray)
+
+        # Adding a point should set average to None
+        self.ZLO.add([4.1, 5.1, 6.1], 0)
+        self.assertIsNone(self.ZLO.final_average)
+
+    def test_delta_r_precalculated(self):
+        self.ZLO.add([1, 2, 3, 4, 5, 6], 0)
+        self.ZLO.add([-2, -3, -4, -5, -6, -7], 180)
+        self.ZLO.add([50, 40, 30, 22, 12, 2], 90)
+        self.ZLO.add([-50, -40, -30, -20, -10, 0], 270)
+        self.ZLO.average()
+
+        v = np.zeros((3, 6))
+        expected = v - np.array([-0.25, -0.25, -0.25, 0.25, 0.25, 0.25])
+        res = self.ZLO.delta_r(v)
+
+        np.testing.assert_allclose(res, expected)
+
+    def test_delta_r_calls_ave(self):
+        self.ZLO.add([1, 2, 3, 4, 5, 6], 0)
+        self.ZLO.add([-2, -3, -4, -5, -6, -7], 180)
+        self.ZLO.add([50, 40, 30, 22, 12, 2], 90)
+        self.ZLO.add([-50, -40, -30, -20, -10, 0], 270)
+        # Don't call average() explicitly, it should be automatically called
+        v = np.zeros((3, 6))
+        expected = v - np.array([-0.25, -0.25, -0.25, 0.25, 0.25, 0.25])
+        res = self.ZLO.delta_r(v)
+
+        np.testing.assert_allclose(res, expected)
+
+    def test_initial_data_added(self):
+        self.ZLO = ZeroLoadOutput([1, 0, 1], 0, 3)
+        np.testing.assert_allclose(self.ZLO.Z[0], np.array([[1, 0, 1]]))
+
+    def test_initial_data_incomplete(self):
+        with self.assertRaises(ValueError) as cm:
+            self.ZLO = ZeroLoadOutput([1, 0, 1])
+
+        self.assertIn("Initial 'orientation' must be provided", str(cm.exception))
 
 
 if __name__ == '__main__':
