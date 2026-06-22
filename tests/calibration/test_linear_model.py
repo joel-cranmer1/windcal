@@ -15,12 +15,11 @@ class TestLinearModel(unittest.TestCase):
         self.model = LinearModel()
 
     def test_fit_returns_expected_shapes(self):
-        data, _, _ = self._create_simple_dataset()
+        data, _ = self._create_simple_dataset()
 
-        C, a = self.model.fit(data)
+        C = self.model.fit(data)
 
         self.assertEqual(C.shape, (6, 6))
-        self.assertEqual(a.shape, (6,))
 
     def test_fit_raises_error_on_invalid_shape(self):
         """Tests that fit() raises a ValueError for non N x 6 inputs."""
@@ -49,48 +48,45 @@ class TestLinearModel(unittest.TestCase):
             CalibrationDataSet(loads, voltages, [])
 
     def test_fit_known_solution(self):
-        data, expected_C, expected_a = self._create_simple_dataset()
+        data, expected_C = self._create_simple_dataset()
 
-        C, a = self.model.fit(data)
+        C = self.model.fit(data)
 
         # Check against known expected values
-        np.testing.assert_array_almost_equal(C, expected_C)
-        np.testing.assert_array_almost_equal(a, expected_a)
+        np.testing.assert_allclose(C, expected_C, atol=1e-10)
 
     def test_fit_random_solution(self):
         """Tests if the model can solve for a known solution from random data."""
-        data, expected_C, expected_a = self._create_random_dataset(seed=42)
-        C, a = self.model.fit(data)
-        np.testing.assert_array_almost_equal(C, expected_C)
-        np.testing.assert_array_almost_equal(a, expected_a)
+        data, expected_C = self._create_random_dataset(seed=42)
+        C = self.model.fit(data)
+        np.testing.assert_allclose(C, expected_C, rtol=1e-10)
 
     def test_reduce_inverts_fit(self):
         """Tests if reduce(fit(data)) returns the original loads."""
         # 1. Create a known dataset
-        data, _, _ = self._create_random_dataset(seed=123)
+        data, _ = self._create_random_dataset(seed=123)
 
         # 2. Fit the model to the data
-        C_fit, a_fit = self.model.fit(data)
+        C_fit = self.model.fit(data)
 
         # 3. Reduce the voltages using the fitted coefficients
-        loads_reduced = self.model.reduce(C_fit, a_fit, data.voltages)
+        loads_reduced = self.model.reduce(C_fit, data.voltages)
 
         # 4. Check if the result matches the original loads
-        np.testing.assert_array_almost_equal(data.loads, loads_reduced)
+        np.testing.assert_allclose(data.loads, loads_reduced,  rtol=1e-5)
 
     def test_reduce_handles_1d_and_2d_voltages(self):
         """Tests that 'reduce' works correctly for single and multiple voltage vectors."""
         C = np.random.rand(6, 6)
-        a = np.random.rand(6)
 
         # Test with a single voltage vector (1D)
         voltages_1d = np.random.rand(6)
-        loads_1d = self.model.reduce(C, a, voltages_1d)
+        loads_1d = self.model.reduce(C, voltages_1d)
         self.assertEqual(loads_1d.shape, (6,))
 
         # Test with multiple voltage vectors (2D)
         voltages_2d = np.random.rand(10, 6)
-        loads_2d = self.model.reduce(C, a, voltages_2d)
+        loads_2d = self.model.reduce(C, voltages_2d)
         self.assertEqual(loads_2d.shape, (10, 6))
 
     def _create_simple_dataset(self):
@@ -108,7 +104,7 @@ class TestLinearModel(unittest.TestCase):
         voltages = loads @ C_expected.T + a_expected
 
         data = CalibrationDataSet(loads, voltages, STANDARD_CHANNELS)
-        return data, C_expected, a_expected
+        return data, C_expected
 
     def _create_random_dataset(self, n_points: int = 100, seed: Any = None):
         """
@@ -137,7 +133,7 @@ class TestLinearModel(unittest.TestCase):
         # 4. Create the dataset object
         data = CalibrationDataSet(loads, voltages, STANDARD_CHANNELS)
 
-        return data, C_expected, a_expected
+        return data, C_expected
 
 
 if __name__ == '__main__':

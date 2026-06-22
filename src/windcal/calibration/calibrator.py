@@ -25,7 +25,7 @@ class Calibrator:
     ) -> BalanceCalibration:
         """Uses the selected math model to fit the data; Returns the calibration artifact."""
         # Unpack the tuple returned by the updated fit() method
-        C, a = self.math_model.fit(data)
+        C = self.math_model.fit(data)
         xform = None
 
         # Check if the channel list matches the STANDARD_CHANNELS
@@ -43,7 +43,6 @@ class Calibrator:
             coefficient_matrix=C,
             math_model_type=self.math_model.__class__.__name__,
             component_names=data.channels,
-            bias_vector=a,
             transformation_matrix=xform,
             metadata=metadata
         )

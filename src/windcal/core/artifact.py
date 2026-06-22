@@ -18,7 +18,6 @@ class BalanceCalibration:
                  coefficient_matrix: np.ndarray,
                  math_model_type: str,
                  component_names: list,  # e.g. ["N1", "N2", "Y1", "Y2", "AF", "RM"]
-                 bias_vector: np.ndarray = None,
                  transformation_matrix: np.ndarray = None,  # Optional 5F/1M -> 3F/3M matrix
                  metadata: CalibrationMetadata = None,
                  ):
@@ -26,12 +25,6 @@ class BalanceCalibration:
         self.timestamp = datetime.now().isoformat()
         self.math_model_type = math_model_type
         self.coefficient_matrix = coefficient_matrix
-
-        # Default to a zero vector if no bias is provided
-        if bias_vector is None:
-            self.bias_vector = np.zeros(6)
-        else:
-            self.bias_vector = bias_vector
 
         self.component_names = component_names
         self.transformation_matrix = transformation_matrix
@@ -65,11 +58,8 @@ class BalanceCalibration:
             raise TypeError("Component names cannot be empty")
 
         cx, cy = self.coefficient_matrix.shape
-        b_size = self.bias_vector.size
         tx, ty = self.transformation_matrix.shape if self.transformation_matrix is not None else (0, 0)
         n_size = len(self.component_names)
-        if cx != b_size:
-            raise ValueError(f"Coefficient matrix shape M x N does not match bias vector size M: ({cx}, {cy}), ({b_size})")
         if cy < cx:
             raise ValueError(f"Coefficient matrix shape M x N - M must be less than or equal to N: ({cx}, {cy})")
         if tx != ty:
@@ -94,7 +84,6 @@ class BalanceCalibration:
             "max_loads": self.max_loads,
             "distances": self.distances,
             "math_model_type": self.math_model_type,
-            "bias_vector": self.bias_vector.tolist(),
             "component_names": self.component_names,
             "coefficient_matrix": self.coefficient_matrix.tolist(),
             "transformation_matrix": self.transformation_matrix.tolist() if self.transformation_matrix is not None else None,
@@ -116,7 +105,6 @@ class BalanceCalibration:
         instance = cls(
             coefficient_matrix=np.array(data.get("coefficient_matrix")),
             math_model_type=data.get("math_model_type"),
-            bias_vector=np.array(data.get("bias_vector")),
             component_names=data.get("component_names"),
             transformation_matrix=np.array(data.get("transformation_matrix")),
             metadata=CalibrationMetadata(

@@ -11,9 +11,8 @@ class TestCalibrator(unittest.TestCase):
         """Runs before EACH test to ensure isolated, fresh mocks."""
         # 1. Setup the mock mathematical model
         self.mock_C = np.eye(6)
-        self.mock_bias = np.zeros(6)
         self.mock_model = Mock(spec=CalibrationMathModel)
-        self.mock_model.fit.return_value = (self.mock_C, self.mock_bias)
+        self.mock_model.fit.return_value = self.mock_C
         self.mock_model.__class__.__name__ = "MockModel"
 
         # 2. Instantiate the system under test
@@ -60,7 +59,6 @@ class TestCalibrator(unittest.TestCase):
             coefficient_matrix=self.mock_C,
             math_model_type='MockModel',
             component_names=STANDARD_CHANNELS,
-            bias_vector=self.mock_bias,
             transformation_matrix=None,
             metadata=None
         )

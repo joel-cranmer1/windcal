@@ -41,18 +41,12 @@ class TestBalanceCalibration(unittest.TestCase):
         self.assertEqual(Cal, None)
 
     @parameterized.expand([
-        param("malformed_bias_vector",
-              manipulation=lambda d: d["bias_vector"].pop(),
-              expected_exception=ValueError),
         param("missing_coefficient_matrix",
               manipulation=lambda d: d.pop("coefficient_matrix", None),
               expected_exception=ValueError),
         param("missing_component_names",
               manipulation=lambda d: d.pop("component_names", None),
               expected_exception=TypeError),
-        param("coef_matrix_bias_vector_mismatch",
-              manipulation=lambda d: d.update({"bias_vector": [1, 2, 3]}),
-              expected_exception=ValueError),
         param("coef_matrix_shape_invalid",
               manipulation=lambda d: d.update({"coefficient_matrix": [[1, 2], [3, 4], [5, 6]]}),
               expected_exception=ValueError),
@@ -100,10 +94,13 @@ class TestBalanceCalibration(unittest.TestCase):
             [0.81589, 0.62132, 0.77874, 0.27097, 0.45457, 0.47010],
             [0.58883, 0.41102, 0.39994, 0.16626, 0.14407, 0.95258]
         ])
-        bias = np.array([0, 0, 0, 0, 0, 0])
         x = BalanceCalibration.create_5f1m_transformation_matrix(1.5, 1.5, 1.25, 1.25)
         channels = ["N1", "N2", "Y1", "Y2", "AF", "RM"]
-        cal = BalanceCalibration(C, "LinearModel", channels, bias, x, self.metadata)
+        cal = BalanceCalibration(C,
+                                 math_model_type="LinearModel",
+                                 component_names=channels,
+                                 transformation_matrix=x,
+                                 metadata=self.metadata)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             demo_file = os.path.join(temp_dir, "tmp_file.json")
@@ -112,7 +109,7 @@ class TestBalanceCalibration(unittest.TestCase):
             with open(demo_file) as f:
                 lines = f.readlines()
 
-            self.assertTrue(len(lines) >= 126)
+            self.assertGreaterEqual(len(lines), 125)
             # Load the file and make sure everything is the same
             new_cal = BalanceCalibration.load(demo_file)
 
