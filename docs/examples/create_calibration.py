@@ -1,7 +1,15 @@
-from windcal.core.io import CalibrationDataSet
+import numpy as np
+import logging
+
+from windcal.core.io import CalibrationDataSet, ZeroLoadOutput
 from windcal.core.metadata import CalibrationMetadata
 from windcal.calibration.models import LinearModel
 from windcal.calibration.calibrator import Calibrator
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s|%(levelname)s|%(name)s|%(message)s"
+)
 
 
 def main():

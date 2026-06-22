@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
+import logging
 import numpy as np
+
 from windcal.core.io import CalibrationDataSet
+
+logger = logging.getLogger(__name__)
 
 
 class CalibrationMathModel(ABC):
@@ -56,7 +60,7 @@ class LinearModel(CalibrationMathModel):
                 - A 6x6 numpy array representing the calibration matrix C.
                 - A 1D numpy array of length 6 representing the bias vector B.
         """
-
+        logger.debug(f"Starting {self.__class__.__name__} data fit routine.")
         # Extract inputs
         G = data.loads  # shape (N, 6)
         R = data.voltages  # shape (N, 6)

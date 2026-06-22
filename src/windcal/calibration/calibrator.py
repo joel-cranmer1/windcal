@@ -1,7 +1,11 @@
+import logging
+
 from windcal.core.io import CalibrationDataSet, STANDARD_CHANNELS
 from windcal.core.artifact import BalanceCalibration
 from windcal.core.metadata import CalibrationMetadata
 from windcal.calibration.models import CalibrationMathModel
+
+logger = logging.getLogger(__name__)
 
 
 class Calibrator:
@@ -27,11 +31,14 @@ class Calibrator:
         # Check if the channel list matches the STANDARD_CHANNELS
         if not data.channels == STANDARD_CHANNELS:
             if "N1" in data.channels:  # Force Balance
+                logger.debug("Creating 5F/1M transformation.")
                 xform = BalanceCalibration.create_5f1m_transformation_matrix(metadata.distances)
             elif "PF" in data.channels:  # Moment Balance
+                logger.debug("Creating 1F/5M transformation.")
                 xform = BalanceCalibration.create_1f5m_transformation_matrix(metadata.distances)
 
         # Create and return the auditable artifact
+        logger.debug("Generating calibration artifact...")
         artifact = BalanceCalibration(
             coefficient_matrix=C,
             math_model_type=self.math_model.__class__.__name__,

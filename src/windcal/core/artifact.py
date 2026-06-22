@@ -3,9 +3,12 @@ import uuid
 from datetime import datetime
 from typing import Union, Tuple
 import numpy as np
+import logging
 
 from windcal.core.io import STANDARD_CHANNELS
 from windcal.core.metadata import CalibrationMetadata
+
+logger = logging.getLogger(__name__)
 
 
 class BalanceCalibration:
@@ -48,6 +51,7 @@ class BalanceCalibration:
 
     def validate(self):
         """Ensure all provided values make sense and are compatible"""
+        logger.debug(f"Validating {self.__class__.__name__}...")
         # Not the correct type
         if not isinstance(self.coefficient_matrix, np.ndarray):
             raise TypeError("Coefficient matrix should be an np.array")
@@ -77,7 +81,10 @@ class BalanceCalibration:
         if self.transformation_matrix is not None and len(self.distances) != 4:
             raise ValueError(f"Four balance distances are required with a Transformation matrix: {self.distances}")
 
+        logger.debug(f"Validation complete.")
+
     def save(self, filepath: str):
+        logger.debug(f"Saving calibration to file: {filepath}")
         data = {
             "balance_calibration": True,
             "uuid": self.uuid,
@@ -98,6 +105,8 @@ class BalanceCalibration:
     @classmethod
     def load(cls, filepath: str):
         """Deserializes the artifact from a JSON file."""
+
+        logger.debug(f"Loading calibration from file: {filepath}")
         with open(filepath, 'r') as f:
             data = json.load(f)
 
