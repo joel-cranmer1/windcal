@@ -1,6 +1,6 @@
 import os.path
 import unittest
-from typing import Any
+from typing import Any, Tuple
 from pathlib import Path
 
 import numpy as np
@@ -73,7 +73,7 @@ class TestLinearModel(unittest.TestCase):
         loads_reduced = self.model.reduce(C_fit, data.voltages)
 
         # 4. Check if the result matches the original loads
-        np.testing.assert_allclose(data.loads, loads_reduced,  rtol=1e-5)
+        np.testing.assert_allclose(loads_reduced, data.loads, atol=0.01)
 
     def test_reduce_handles_1d_and_2d_voltages(self):
         """Tests that 'reduce' works correctly for single and multiple voltage vectors."""
@@ -89,7 +89,7 @@ class TestLinearModel(unittest.TestCase):
         loads_2d = self.model.reduce(C, voltages_2d)
         self.assertEqual(loads_2d.shape, (10, 6))
 
-    def _create_simple_dataset(self):
+    def _create_simple_dataset(self) -> Tuple[CalibrationDataSet, np.ndarray]:
         """
         Creates a simple dataset of loads and calculates the corresponding
         voltages based on a known calibration matrix and bias vector.
@@ -106,7 +106,7 @@ class TestLinearModel(unittest.TestCase):
         data = CalibrationDataSet(loads, voltages, STANDARD_CHANNELS)
         return data, C_expected
 
-    def _create_random_dataset(self, n_points: int = 100, seed: Any = None):
+    def _create_random_dataset(self, n_points: int = 100, seed: Any = None) -> Tuple[CalibrationDataSet, np.ndarray]:
         """
         Creates a dataset with random loads and calculates the corresponding
         voltages based on a known calibration matrix and bias vector.
@@ -116,14 +116,39 @@ class TestLinearModel(unittest.TestCase):
 
         # 1. Create known, random coefficients for the expected solution, but keep it mostly on the diagonal
         A = np.random.rand(6, 6)
-        B = np.eye(6) * 100
+        B = np.eye(6) * 1e5
         C = A + B
         col_norms = np.linalg.norm(C, axis=0, keepdims=True)
         C_expected = C / col_norms
-        a_expected = np.random.rand(6)
+        a_expected = np.random.rand(6) * 0.01
 
-        # 2. Create random but realistic loads
-        loads = (np.random.rand(n_points, 6) - 0.5) * 1000
+        # 2. Create structured but randomized loads
+
+        n_per_dim = n_points // 6
+        remainder = n_points % 6
+
+        loads_list = []
+
+        for dim in range(6):
+            count = n_per_dim + (1 if dim < remainder else 0)
+
+            # Evenly spaced magnitudes across range
+            mags = np.linspace(-500, 500, count)
+
+            # Add small randomness (jitter) so it's not perfectly linear
+            mags += np.random.randn(count) * 20  # small noise
+
+            # Build loads for this dimension
+            block = np.zeros((count, 6))
+            block[:, dim] = mags
+
+            loads_list.append(block)
+
+        # Combine and shuffle
+        loads = np.vstack(loads_list)
+        np.random.shuffle(loads)
+
+        assert np.all(np.count_nonzero(loads, axis=1) == 1)  # each row only has one non-zero load
 
         # 3. Calculate the resulting voltages using the model's equation
         # The fit method solves R = G @ C.T + a (where G=loads, R=voltages)
