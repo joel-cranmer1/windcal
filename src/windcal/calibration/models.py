@@ -152,7 +152,7 @@ class LinearAbsoluteModel(CalibrationMathModel):
 
         F_ab = np.abs(G)
 
-        # Combine columns
+        # Combine columns [1, F, ... |F|, ...]
         ones = np.ones((G.shape[0], 1))
         G_aug = np.hstack((ones, G, F_ab))
 

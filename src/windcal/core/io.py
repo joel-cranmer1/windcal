@@ -210,15 +210,48 @@ class ZeroLoadOutput:
         return self.final_average
 
     def delta_r(self, bridge: np.ndarray) -> np.ndarray:
-        """Calculates the delta in output"""
+        """Calculates the deviation from the average zero load output.
 
-        if bridge.shape[1] != self.num_bridges:
-            raise ValueError(f"Bridge must be an array of length {self.num_bridges}, "
-                             f"but got shape {bridge.shape}.")
+        This method supports both 1D and 2D inputs. Internally, inputs are
+        coerced to at least 2D for computation, and the output retains the
+        original dimensionality of the input.
+
+        Args:
+            bridge (np.ndarray): Input array representing bridge values.
+                Must have shape (M,), or (N, M), where M equals
+                `self.num_bridges`.
+
+        Returns:
+            np.ndarray: The deviation of `bridge` from the computed average.
+                The returned array has the same shape as the input.
+
+        Raises:
+            ValueError: If the number of columns in `bridge` does not match
+                `self.num_bridges`.
+
+        Notes:
+            If `self.final_average` has not been computed, it is calculated
+            by calling `self.average()` before performing the subtraction.
+        """
+
+        bridge_arr = np.atleast_2d(bridge)
+
+        if bridge_arr.shape[1] != self.num_bridges:
+            raise ValueError(
+                f"Bridge must have {self.num_bridges} columns, "
+                f"but got shape {bridge_arr.shape}."
+            )
 
         if self.final_average is None:
-            self.average()  # calculate average
+            self.average()
 
-        z = self.final_average
+        z = np.atleast_2d(self.final_average)
 
-        return bridge - z
+        result = bridge_arr - z
+
+        # Return same dimensionality as input
+        if bridge.ndim == 1:
+            return result.squeeze(0)
+
+        return result
+

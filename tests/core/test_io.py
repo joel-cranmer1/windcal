@@ -207,9 +207,30 @@ class TestZeroLoadOutput(unittest.TestCase):
 
         np.testing.assert_allclose(res, expected)
 
+    def test_delta_r_with_1d_array(self):
+        """delta_r should accept a 1D array and return a 1D result."""
+        self.ZLO.final_average = np.zeros((1, 6))
+        v = np.zeros(6)
+
+        result = self.ZLO.delta_r(v)
+
+        self.assertEqual(result.shape, (6,))
+        np.testing.assert_array_equal(result, np.zeros(6))
+
+    def test_delta_r_with_2d_array(self):
+        """delta_r should accept a 2D array and return a 2D result."""
+        self.ZLO.final_average = np.zeros((1, 6))
+        v = np.zeros(6).reshape(1, -1)
+
+        result = self.ZLO.delta_r(v)
+
+        self.assertEqual(result.shape, (1, 6))
+        np.testing.assert_array_equal(result, np.zeros((1, 6)))
+
     def test_initial_data_added(self):
         self.ZLO = ZeroLoadOutput([1, 0, 1], 0, 3)
         np.testing.assert_allclose(self.ZLO.Z[0], np.array([[1, 0, 1]]))
+        self.assertEqual(self.ZLO.num_bridges, 3)
 
     def test_initial_data_incomplete(self):
         with self.assertRaises(ValueError) as cm:
