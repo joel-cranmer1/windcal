@@ -1,0 +1,45 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Level 2 Container Diagram for WindCal API
+
+System_Ext(client_app, "Client Application / Scripts", "External script handling File I/O, UI, and data persistence.")
+
+System_Boundary(windcal, "WindCal Library") {
+    Container(zlo_class, "ZLO Module", "Python Class", "Manages Zero Load Output. Accepts single data points. Provides 'average' and 'delta_r' calculations.")
+
+    Container(math_models, "Math Models Module", "Python (ABC: CalibrationMathModel)", "Extensible mathematical models (e.g., least squares fitting) used by both flows.")
+
+    Container(cal_api, "Calibration API Flow", "Python", "Orchestrates the calibration process. Fits known forces and voltages using the selected math model.")
+
+    Container(cal_artifact, "Calibration Artifact", "Python Data Object", "Data structure containing the fitted model parameters and averaged ZLO data.")
+
+    Container(red_api, "Reduction API Flow", "Python", "Processes experimental data using the Calibration Artifact to output calculated forces.")
+
+    Container(aero_api, "Aerodynamics API", "Python", "[FUTURE] Processes reduced forces into aerodynamic coefficients.")
+}
+
+' Client interactions with ZLO
+Rel(client_app, zlo_class, "1. Adds ZLO data points")
+
+' Client interactions with Calibration
+Rel(client_app, cal_api, "2. Initiates calibration (passes voltage & known forces)")
+Rel(client_app, math_models, "Selects/Injects specific math model implementation")
+
+' Internal Calibration Flow
+Rel(cal_api, zlo_class, "Requests averaged ZLO / delta_r")
+Rel(cal_api, math_models, "Fits data to model")
+Rel(cal_api, cal_artifact, "Generates & populates")
+Rel(cal_artifact, client_app, "3. Returns artifact to client (for persistence)")
+
+' Client interactions with Reduction
+Rel(client_app, red_api, "4. Initiates reduction (passes test data & artifact)")
+
+' Internal Reduction Flow
+Rel(red_api, math_models, "Applies model parameters")
+Rel(red_api, cal_artifact, "Reads parameters & ZLO")
+Rel(red_api, client_app, "5. Returns reduced data (forces)")
+
+' Future Flow
+Rel(client_app, aero_api, "[Future] Passes reduced forces & inputs")
+@enduml

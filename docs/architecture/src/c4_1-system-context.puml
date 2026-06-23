@@ -1,0 +1,19 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Level 1 System Context Diagram for WindCal Library
+
+Person(engineer, "Test Engineer / Analyst", "Conducts wind tunnel data analysis, calibration, and reduction.")
+
+System_Ext(client_app, "Client Application / Scripts", "External wrapper (GUI, CLI, etc.). Handles all user interactions, File I/O, data loading, and persistence.")
+
+System(windcal, "WindCal Library", "Core Python API providing mathematical models, calibration artifact generation, and data reduction flows.")
+
+Rel(engineer, client_app, "Provides raw data files, selects math models, and configures test parameters")
+
+Rel(client_app, windcal, "Passes raw data (voltages, known forces, ZLO) and requests calibration")
+Rel(windcal, client_app, "Returns generated Calibration Artifact")
+
+Rel(client_app, windcal, "Passes experimental data & Calibration Artifact, requests reduction")
+Rel(windcal, client_app, "Returns Reduced Data (calculated forces)")
+@enduml
