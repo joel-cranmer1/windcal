@@ -17,7 +17,7 @@ The library emphasizes modularity, traceability, and mathematical flexibility. C
 
 ## Installation
 
-```
+```sh
 python -m pip install git+https://gitlab.cicrange.net/all/dfan/apps/windcal.git
 ```
 
@@ -62,7 +62,7 @@ python -m unittest discover
 
 ## Release History
 
-- 0.0.1
+- 0.1.0
     - Initial Work in progress.
 
 ## Meta
