@@ -23,9 +23,7 @@ class DataReducer:
         """Process voltages to component units"""
         # Step 1: Get raw balance loads
         raw_loads = self.math_model.reduce(
-            self.calibration.coefficient_matrix,
-            self.calibration.bias_vector,
-            self._order_voltages(voltages)
+            self.calibration.coefficient_matrix, self.calibration.bias_vector, self._order_voltages(voltages)
         )
         return self._label_loads(raw_loads)
 
@@ -56,10 +54,13 @@ class DataReducer:
             ValueError
         """
         try:
-            return np.stack([
-                component[f"{pre}{c}"]  # Use "r" for voltages
-                for c in self.calibration.component_names
-            ], axis=-1)
+            return np.stack(
+                [
+                    component[f"{pre}{c}"]  # Use "r" for voltages
+                    for c in self.calibration.component_names
+                ],
+                axis=-1,
+            )
         except KeyError as e:
             raise ValueError(f"Missing component: {e.args[0]}")
         except ValueError as e:

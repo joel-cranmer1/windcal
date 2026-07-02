@@ -1,9 +1,10 @@
 import json
+import logging
 import uuid
 from datetime import datetime
-from typing import Union, Tuple
+from typing import Tuple, Union
+
 import numpy as np
-import logging
 
 from windcal.core.io import STANDARD_CHANNELS
 from windcal.core.metadata import CalibrationMetadata
@@ -14,13 +15,14 @@ logger = logging.getLogger(__name__)
 class BalanceCalibration:
     """The immutable artifact containing the calibration matrix and metadata."""
 
-    def __init__(self,
-                 coefficient_matrix: np.ndarray,
-                 math_model_type: str,
-                 component_names: list,  # e.g. ["N1", "N2", "Y1", "Y2", "AF", "RM"]
-                 transformation_matrix: np.ndarray = None,  # Optional 5F/1M -> 3F/3M matrix
-                 metadata: CalibrationMetadata = None,
-                 ):
+    def __init__(
+        self,
+        coefficient_matrix: np.ndarray,
+        math_model_type: str,
+        component_names: list,  # e.g. ["N1", "N2", "Y1", "Y2", "AF", "RM"]
+        transformation_matrix: np.ndarray = None,  # Optional 5F/1M -> 3F/3M matrix
+        metadata: CalibrationMetadata = None,
+    ):
         self.uuid = str(uuid.uuid4())
         self.timestamp = datetime.now().isoformat()
         self.math_model_type = math_model_type
@@ -65,13 +67,15 @@ class BalanceCalibration:
         if tx != ty:
             raise ValueError(f"Transformation matrix shape must be square: ({tx}, {ty})")
         if cx != n_size:
-            raise ValueError(f"Coefficient matrix shape M x N does not match component names length: ({cx}, {cy}), ({n_size})")
+            raise ValueError(
+                f"Coefficient matrix shape M x N does not match component names length: ({cx}, {cy}), ({n_size})"
+            )
         if self.component_names != STANDARD_CHANNELS and self.transformation_matrix is None:
-            raise ValueError(f"Transformation matrix is required if balance is Force or Moment type.")
+            raise ValueError("Transformation matrix is required if balance is Force or Moment type.")
         if self.transformation_matrix is not None and len(self.distances) != 4:
             raise ValueError(f"Four balance distances are required with a Transformation matrix: {self.distances}")
 
-        logger.debug(f"Validation complete.")
+        logger.debug("Validation complete.")
 
     def save(self, filepath: str):
         logger.debug(f"Saving calibration to file: {filepath}")
@@ -86,9 +90,11 @@ class BalanceCalibration:
             "math_model_type": self.math_model_type,
             "component_names": self.component_names,
             "coefficient_matrix": self.coefficient_matrix.tolist(),
-            "transformation_matrix": self.transformation_matrix.tolist() if self.transformation_matrix is not None else None,
+            "transformation_matrix": self.transformation_matrix.tolist()
+            if self.transformation_matrix is not None
+            else None,
         }
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=4)
 
     @classmethod
@@ -96,7 +102,7 @@ class BalanceCalibration:
         """Deserializes the artifact from a JSON file."""
 
         logger.debug(f"Loading calibration from file: {filepath}")
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             data = json.load(f)
 
         if not data.get("balance_calibration"):
@@ -111,8 +117,8 @@ class BalanceCalibration:
                 author=data.get("author", "Unknown"),
                 balance_info=data.get("balance"),
                 max_loads=data.get("max_loads"),
-                distances=tuple(data.get("distances"))
-            )
+                distances=tuple(data.get("distances")),
+            ),
         )
         instance.uuid = data["uuid"]  # Restore exact UUID
         instance.timestamp = data["timestamp"]
@@ -120,10 +126,10 @@ class BalanceCalibration:
 
     @staticmethod
     def create_5f1m_transformation_matrix(
-            x_nf_fore: Union[float, Tuple[float, float, float, float]],
-            x_nf_aft: float = None,
-            x_sf_fore: float = None,
-            x_sf_aft: float = None
+        x_nf_fore: Union[float, Tuple[float, float, float, float]],
+        x_nf_aft: float = None,
+        x_sf_fore: float = None,
+        x_sf_aft: float = None,
     ) -> np.ndarray:
         """Generates a 6x6 coordinate transformation matrix for 5F/1M balances.
 
@@ -175,10 +181,10 @@ class BalanceCalibration:
 
     @staticmethod
     def create_1f5m_transformation_matrix(
-            x_pm_fore: Union[float, Tuple[float, float, float, float]],
-            x_pm_aft: float = None,
-            x_ym_fore: float = None,
-            x_ym_aft: float = None
+        x_pm_fore: Union[float, Tuple[float, float, float, float]],
+        x_pm_aft: float = None,
+        x_ym_fore: float = None,
+        x_ym_aft: float = None,
     ) -> np.ndarray:
         """Generates a 6x6 coordinate transformation matrix for 1F/5M balances.
 

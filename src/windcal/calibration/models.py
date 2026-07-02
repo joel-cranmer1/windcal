@@ -1,5 +1,6 @@
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
+
 import numpy as np
 
 from windcal.core.io import CalibrationDataSet
@@ -71,14 +72,14 @@ class LinearModel(CalibrationMathModel):
 
         # Add bias column (intercept term)
         ones = np.ones((G.shape[0], 1))
-        G_aug = np.hstack((ones, G))   # shape (N, 7)
+        G_aug = np.hstack((ones, G))  # shape (N, 7)
 
         # Solve least-squares: G_aug * X = R
         # X will be shape (7, 6)
         X, residuals, rank, s = np.linalg.lstsq(G_aug, R, rcond=None)
 
         # Extract bias and calibration matrix
-        bias = X[0, :]  # shape (6,)
+        # bias = X[0, :]  # shape (6,)
         C = X[1:, :].T  # shape (6, 6) and transpose
 
         # # --- R^2 Calculation ---
@@ -160,7 +161,7 @@ class LinearAbsoluteModel(CalibrationMathModel):
         X, residuals, rank, s = np.linalg.lstsq(G_aug, R, rcond=None)
 
         # Extract bias and calibration matrix
-        bias = X[0, :]  # shape (6,)
+        # bias = X[0, :]  # shape (6,)
         C = X[1:, :].T  # shape (12, 6) and transpose
 
         return C

@@ -1,16 +1,13 @@
-import os.path
 import unittest
 from typing import Any, Tuple
-from pathlib import Path
 
 import numpy as np
 
-from windcal.core.io import CalibrationDataSet, STANDARD_CHANNELS
 from windcal.calibration.models import LinearModel
+from windcal.core.io import STANDARD_CHANNELS, CalibrationDataSet
 
 
 class TestLinearModel(unittest.TestCase):
-
     def setUp(self):
         self.model = LinearModel()
 
@@ -29,7 +26,7 @@ class TestLinearModel(unittest.TestCase):
 
         # The error should be caught by CalibrationDataSet first
         with self.assertRaisesRegex(ValueError, "must have exactly 6 channels"):
-            CalibrationDataSet(loads_invalid, voltages_invalid, ['NF', 'SF', 'AF', 'PM', 'RM'])
+            CalibrationDataSet(loads_invalid, voltages_invalid, ["NF", "SF", "AF", "PM", "RM"])
 
         # Test for shape mismatch between loads and voltages
         loads_valid = np.random.rand(10, 6)
@@ -161,5 +158,5 @@ class TestLinearModel(unittest.TestCase):
         return data, C_expected
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

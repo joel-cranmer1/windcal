@@ -1,5 +1,6 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+
 import numpy as np
 
 from windcal.core.artifact import BalanceCalibration
@@ -92,7 +93,7 @@ class TestDataReducer(unittest.TestCase):
             "Y1": [3, 9, 15],
             "Y2": [4, 10, 16],
             "AF": [5, 11, 17],
-            "RM": [6, 12, 18]
+            "RM": [6, 12, 18],
         }
         self.assertEqual(l_out, expected_loads)
 
@@ -109,7 +110,7 @@ class TestDataReducer(unittest.TestCase):
             "AF": [3, 9, 15],
             "PM": [4, 10, 16],
             "RM": [5, 11, 17],
-            "YM": [6, 12, 18]
+            "YM": [6, 12, 18],
         }
         self.assertEqual(l_out, expected_loads)
 
@@ -124,5 +125,5 @@ class TestDataReducer(unittest.TestCase):
         self.assertIn("Provided Keys are not the same size", str(cm.exception))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
