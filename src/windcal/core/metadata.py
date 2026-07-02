@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 
 @dataclass(frozen=True)  # frozen=True makes the config immutable and hashable
 class CalibrationMetadata:
     """Carries downstream configurations for the final BalanceCalibration artifact."""
+
     author: str = "System"
     # Holds type, manufacturer, serial_number, diameter, etc.
     balance_info: Optional[dict] = field(default_factory=dict)

@@ -1,9 +1,11 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from windcal.core.io import STANDARD_CHANNELS
+import numpy as np
+
 from windcal.calibration.calibrator import Calibrator
-from windcal.calibration.models import *
+from windcal.calibration.models import CalibrationMathModel, LinearModel
+from windcal.core.io import STANDARD_CHANNELS
 
 
 class TestCalibrator(unittest.TestCase):
@@ -27,7 +29,7 @@ class TestCalibrator(unittest.TestCase):
 
         # 4. Patch BalanceCalibration manually
         # Create the patcher
-        patcher = patch('windcal.calibration.calibrator.BalanceCalibration', autospec=True)
+        patcher = patch("windcal.calibration.calibrator.BalanceCalibration", autospec=True)
         # Start the patcher and save the mock to a class instance variable
         self.MockBalanceCalibration = patcher.start()
         # Ensure the patcher stops after the test finishes, even if the test fails
@@ -57,26 +59,24 @@ class TestCalibrator(unittest.TestCase):
         # Verify the artifact was instantiated with the data from the math model
         self.MockBalanceCalibration.assert_called_once_with(
             coefficient_matrix=self.mock_C,
-            math_model_type='MockModel',
+            math_model_type="MockModel",
             component_names=STANDARD_CHANNELS,
             transformation_matrix=None,
-            metadata=None
+            metadata=None,
         )
 
     def test_no_transform_for_standard_channels(self):
         self.calibrator.generate_calibration(self.mock_data)
 
         called_kwargs = self.MockBalanceCalibration.call_args[1]
-        self.assertIsNone(called_kwargs.get('transformation_matrix'))
+        self.assertIsNone(called_kwargs.get("transformation_matrix"))
 
     def test_force_balance_transform(self):
         # Override the default mock data for this specific test
         self.mock_data.channels = ["N1"]
 
         with patch.object(
-                self.MockBalanceCalibration,
-                "create_5f1m_transformation_matrix",
-                return_value="XFORM"
+            self.MockBalanceCalibration, "create_5f1m_transformation_matrix", return_value="XFORM"
         ) as mock_xform:
             self.calibrator.generate_calibration(self.mock_data, self.mock_metadata)
 
@@ -84,24 +84,21 @@ class TestCalibrator(unittest.TestCase):
 
             # Verify the output of the transform was passed to the artifact
             called_kwargs = self.MockBalanceCalibration.call_args[1]
-            self.assertEqual(called_kwargs.get('transformation_matrix'), "XFORM")
+            self.assertEqual(called_kwargs.get("transformation_matrix"), "XFORM")
 
     def test_moment_balance_transform(self):
         self.mock_data.channels = ["PF"]
 
         with patch.object(
-                self.MockBalanceCalibration,
-                "create_1f5m_transformation_matrix",
-                return_value="XFORM2"
+            self.MockBalanceCalibration, "create_1f5m_transformation_matrix", return_value="XFORM2"
         ) as mock_xform:
-
             self.calibrator.generate_calibration(self.mock_data, self.mock_metadata)
 
             mock_xform.assert_called_once_with("mock_distances")
 
             called_kwargs = self.MockBalanceCalibration.call_args[1]
-            self.assertEqual(called_kwargs.get('transformation_matrix'), "XFORM2")
+            self.assertEqual(called_kwargs.get("transformation_matrix"), "XFORM2")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,12 +1,13 @@
+import logging
+
 import numpy as np
 import pandas as pd
-import logging
 
 logger = logging.getLogger(__name__)
 
 # The global standard channel order for WindCal
-STANDARD_CHANNELS = ['NF', 'SF', 'AF', 'PM', 'RM', 'YM']
-BALANCE_CHANNELS = ['NF', 'N1', 'N2', 'SF', 'Y1', 'Y2', 'PF', 'PA', 'YF', 'YA', 'AX', "AF", 'PM', 'RM', 'YM']
+STANDARD_CHANNELS = ["NF", "SF", "AF", "PM", "RM", "YM"]
+BALANCE_CHANNELS = ["NF", "N1", "N2", "SF", "Y1", "Y2", "PF", "PA", "YF", "YA", "AX", "AF", "PM", "RM", "YM"]
 
 
 class CalibrationDataSet:
@@ -17,7 +18,7 @@ class CalibrationDataSet:
         self.voltages = np.asarray(voltages)
         self.channels = list(channels)
 
-        logger.debug(f"New CalibrationDataSet created!")
+        logger.debug("New CalibrationDataSet created!")
 
         # enforce canonical ordering HERE
         self._enforce_channel_order()
@@ -25,12 +26,12 @@ class CalibrationDataSet:
         self.validate()
 
     def validate(self):
-        logger.debug(f"Validating load and voltage shapes...")
+        logger.debug("Validating load and voltage shapes...")
         if self.loads.shape != self.voltages.shape:
             raise ValueError("Loads and voltages must have the same shape (N x 6).")
         if self.loads.shape[1] != 6:
             raise ValueError("Data must have exactly 6 channels/components.")
-        logger.debug(f"Validation complete.")
+        logger.debug("Validation complete.")
 
     def _enforce_channel_order(self):
         """Reorders loads/voltages to match BALANCE_CHANNELS canonical order."""
@@ -71,7 +72,7 @@ class CalibrationDataSet:
         load_cols = []
         volt_cols = []
 
-        logger.debug(f"Loading data...")
+        logger.debug("Loading data...")
         # enforce pairing at load time
         for c in BALANCE_CHANNELS:
             rc = f"R{c}"
@@ -85,7 +86,7 @@ class CalibrationDataSet:
         loads = df[load_cols].to_numpy()
         voltages = df[volt_cols].to_numpy()
 
-        logger.debug(f"Creating new object...")
+        logger.debug("Creating new object...")
 
         return cls(loads, voltages, load_cols)
 
@@ -146,8 +147,10 @@ class ZeroLoadOutput:
             orientation = 270
 
         self.Z[orientation].append(data_array)
-        logger.debug(f"Added data point for orientation {orientation}°. "
-                     f"Total points for this orientation: {len(self.Z[orientation])}")
+        logger.debug(
+            f"Added data point for orientation {orientation}°. "
+            f"Total points for this orientation: {len(self.Z[orientation])}"
+        )
         self.final_average = None  # ensure that average is recalculated
 
     def average(self) -> np.ndarray:
@@ -166,7 +169,6 @@ class ZeroLoadOutput:
             ValueError: If there is not at least one data point for each of the
             four required orientation groups (0, 90, 180, 270/-90).
         """
-        required_orientations = {0, 90, 180, 270}
         missing_orientations = []
 
         # Check if we have data for 270 or -90
@@ -183,7 +185,8 @@ class ZeroLoadOutput:
 
         if missing_orientations:
             raise ValueError(
-                f"Cannot calculate average. Missing data for the following orientations: {missing_orientations}")
+                f"Cannot calculate average. Missing data for the following orientations: {missing_orientations}"
+            )
 
         orientation_averages = []
 
@@ -237,10 +240,7 @@ class ZeroLoadOutput:
         bridge_arr = np.atleast_2d(bridge)
 
         if bridge_arr.shape[1] != self.num_bridges:
-            raise ValueError(
-                f"Bridge must have {self.num_bridges} columns, "
-                f"but got shape {bridge_arr.shape}."
-            )
+            raise ValueError(f"Bridge must have {self.num_bridges} columns, but got shape {bridge_arr.shape}.")
 
         if self.final_average is None:
             self.average()
@@ -254,4 +254,3 @@ class ZeroLoadOutput:
             return result.squeeze(0)
 
         return result
-

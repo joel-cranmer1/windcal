@@ -1,10 +1,11 @@
+import copy
 import json
 import os
-import unittest
-import numpy as np
 import tempfile
-import copy
-from parameterized import parameterized, param
+import unittest
+
+import numpy as np
+from parameterized import param, parameterized
 
 from windcal.core.artifact import BalanceCalibration
 from windcal.core.metadata import CalibrationMetadata
@@ -15,15 +16,11 @@ class TestBalanceCalibration(unittest.TestCase):
     def setUpClass(cls):
         cls.base_dir = os.path.dirname(os.path.abspath(__file__))
         # Define the exact path to static fixture directory
-        cls.fixture_dir = os.path.join(cls.base_dir, 'fixtures')
-        cls.metadata = CalibrationMetadata(
-            author="System",
-            balance_info={"test_balance": True},
-            distances=(1, 2, 3, 4)
-        )
+        cls.fixture_dir = os.path.join(cls.base_dir, "fixtures")
+        cls.metadata = CalibrationMetadata(author="System", balance_info={"test_balance": True}, distances=(1, 2, 3, 4))
         # Load the base valid file once for all validation tests
         filepath = os.path.join(cls.fixture_dir, "Test_balance_cal.json")
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             cls.valid_cal_data = json.load(f)
 
     def test_load_valid_file(self):
@@ -40,29 +37,45 @@ class TestBalanceCalibration(unittest.TestCase):
         self.assertEqual(Cal.__class__.__name__, "NoneType")
         self.assertEqual(Cal, None)
 
-    @parameterized.expand([
-        param("missing_coefficient_matrix",
-              manipulation=lambda d: d.pop("coefficient_matrix", None),
-              expected_exception=ValueError),
-        param("missing_component_names",
-              manipulation=lambda d: d.pop("component_names", None),
-              expected_exception=TypeError),
-        param("coef_matrix_shape_invalid",
-              manipulation=lambda d: d.update({"coefficient_matrix": [[1, 2], [3, 4], [5, 6]]}),
-              expected_exception=ValueError),
-        param("transformation_matrix_not_square",
-              manipulation=lambda d: d.update({"transformation_matrix": [[1, 2, 3], [4, 5, 6]]}),
-              expected_exception=ValueError),
-        param("coef_matrix_component_names_mismatch",
-              manipulation=lambda d: d.update({"component_names": ["N1", "N2"]}),
-              expected_exception=ValueError),
-        param("distances_incorrect_length_with_transform",
-              manipulation=lambda d: d.update({"distances": (1, 2, 3)}),
-              expected_exception=ValueError),
-        param("transformation_matrix_missing",
-              manipulation=lambda d: d.update({"transformation_matrix": None}),
-              expected_exception=ValueError),
-    ])
+    @parameterized.expand(
+        [
+            param(
+                "missing_coefficient_matrix",
+                manipulation=lambda d: d.pop("coefficient_matrix", None),
+                expected_exception=ValueError,
+            ),
+            param(
+                "missing_component_names",
+                manipulation=lambda d: d.pop("component_names", None),
+                expected_exception=TypeError,
+            ),
+            param(
+                "coef_matrix_shape_invalid",
+                manipulation=lambda d: d.update({"coefficient_matrix": [[1, 2], [3, 4], [5, 6]]}),
+                expected_exception=ValueError,
+            ),
+            param(
+                "transformation_matrix_not_square",
+                manipulation=lambda d: d.update({"transformation_matrix": [[1, 2, 3], [4, 5, 6]]}),
+                expected_exception=ValueError,
+            ),
+            param(
+                "coef_matrix_component_names_mismatch",
+                manipulation=lambda d: d.update({"component_names": ["N1", "N2"]}),
+                expected_exception=ValueError,
+            ),
+            param(
+                "distances_incorrect_length_with_transform",
+                manipulation=lambda d: d.update({"distances": (1, 2, 3)}),
+                expected_exception=ValueError,
+            ),
+            param(
+                "transformation_matrix_missing",
+                manipulation=lambda d: d.update({"transformation_matrix": None}),
+                expected_exception=ValueError,
+            ),
+        ]
+    )
     def test_validation_errors(self, test_name: str, manipulation, expected_exception):
         """
         Tests various validation error scenarios when loading a BalanceCalibration file.
@@ -77,30 +90,30 @@ class TestBalanceCalibration(unittest.TestCase):
             # Apply the specific manipulation for this test case
             manipulation(bad_data)
 
-            with open(bad_file, 'w') as f:
+            with open(bad_file, "w") as f:
                 json.dump(bad_data, f, indent=4)
 
             # Assert that loading the bad file raises the expected exception
             with self.assertRaises(expected_exception):
-                Cal = BalanceCalibration.load(bad_file)
+                BalanceCalibration.load(bad_file)
 
     def test_save_cal_file(self):
         # dummy 6x6 matrix
-        C = np.array([
-            [0.21341, 0.65599, 0.16580, 0.69299, 0.08340, 0.27650],
-            [0.56696, 0.26050, 0.39282, 0.48158, 0.28395, 0.54540],
-            [0.51717, 0.70352, 0.75610, 0.00266, 0.15926, 0.31440],
-            [0.88432, 0.71919, 0.77881, 0.40355, 0.84471, 0.63410],
-            [0.81589, 0.62132, 0.77874, 0.27097, 0.45457, 0.47010],
-            [0.58883, 0.41102, 0.39994, 0.16626, 0.14407, 0.95258]
-        ])
+        C = np.array(
+            [
+                [0.21341, 0.65599, 0.16580, 0.69299, 0.08340, 0.27650],
+                [0.56696, 0.26050, 0.39282, 0.48158, 0.28395, 0.54540],
+                [0.51717, 0.70352, 0.75610, 0.00266, 0.15926, 0.31440],
+                [0.88432, 0.71919, 0.77881, 0.40355, 0.84471, 0.63410],
+                [0.81589, 0.62132, 0.77874, 0.27097, 0.45457, 0.47010],
+                [0.58883, 0.41102, 0.39994, 0.16626, 0.14407, 0.95258],
+            ]
+        )
         x = BalanceCalibration.create_5f1m_transformation_matrix(1.5, 1.5, 1.25, 1.25)
         channels = ["N1", "N2", "Y1", "Y2", "AF", "RM"]
-        cal = BalanceCalibration(C,
-                                 math_model_type="LinearModel",
-                                 component_names=channels,
-                                 transformation_matrix=x,
-                                 metadata=self.metadata)
+        cal = BalanceCalibration(
+            C, math_model_type="LinearModel", component_names=channels, transformation_matrix=x, metadata=self.metadata
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             demo_file = os.path.join(temp_dir, "tmp_file.json")
@@ -119,7 +132,6 @@ class TestBalanceCalibration(unittest.TestCase):
 
 
 class Test5F1MTransformationMatrix(unittest.TestCase):
-
     def test_identity_passthrough(self):
         """AF and RM should pass through unchanged."""
         T = BalanceCalibration.create_5f1m_transformation_matrix(1.0, 1.0, 1.0, 1.0)
@@ -156,7 +168,6 @@ class Test5F1MTransformationMatrix(unittest.TestCase):
 
 
 class Test1F5MTransformationMatrix(unittest.TestCase):
-
     def test_identity_passthrough(self):
         """AF and RM should pass through unchanged."""
         T = BalanceCalibration.create_1f5m_transformation_matrix(1.0, 1.0, 1.0, 1.0)

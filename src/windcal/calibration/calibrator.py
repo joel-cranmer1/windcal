@@ -1,9 +1,9 @@
 import logging
 
-from windcal.core.io import CalibrationDataSet, STANDARD_CHANNELS
-from windcal.core.artifact import BalanceCalibration
-from windcal.core.metadata import CalibrationMetadata
 from windcal.calibration.models import CalibrationMathModel
+from windcal.core.artifact import BalanceCalibration
+from windcal.core.io import STANDARD_CHANNELS, CalibrationDataSet
+from windcal.core.metadata import CalibrationMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,9 @@ class Calibrator:
             raise TypeError("math_model must ve a CalibrationMathModel")
 
     def generate_calibration(
-            self, data: CalibrationDataSet,
-            metadata: CalibrationMetadata = None,
+        self,
+        data: CalibrationDataSet,
+        metadata: CalibrationMetadata = None,
     ) -> BalanceCalibration:
         """Uses the selected math model to fit the data; Returns the calibration artifact."""
         # Unpack the tuple returned by the updated fit() method
@@ -44,6 +45,6 @@ class Calibrator:
             math_model_type=self.math_model.__class__.__name__,
             component_names=data.channels,
             transformation_matrix=xform,
-            metadata=metadata
+            metadata=metadata,
         )
         return artifact

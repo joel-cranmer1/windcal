@@ -36,7 +36,13 @@ Key features include:
 To set up a development environment:
 
 ```sh
-python -m pip install -e .
+python -m pip install -e .[dev]
+```
+
+Run ruff code linter:
+
+```sh
+ruff check .
 ```
 
 Run tests:

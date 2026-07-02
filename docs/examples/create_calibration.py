@@ -1,10 +1,9 @@
-import numpy as np
 import logging
 
+from windcal.calibration.calibrator import Calibrator
+from windcal.calibration.models import LinearAbsoluteModel
 from windcal.core.io import CalibrationDataSet, ZeroLoadOutput
 from windcal.core.metadata import CalibrationMetadata
-from windcal.calibration.models import LinearModel
-from windcal.calibration.calibrator import Calibrator
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -48,5 +47,5 @@ def main():
     calibration_artifact.save("balance_sn123_v1.json")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
