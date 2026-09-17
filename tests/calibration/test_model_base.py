@@ -90,6 +90,11 @@ class CalibrationModelContractTest(unittest.TestCase):
         col_norms[col_norms == 0] = 1  # Avoid division by zero.
         C_expected = C / col_norms
 
+        # Damp the non-linear (e.g. absolute-value) blocks relative to the
+        # linear block.
+        NONLINEAR_SCALE = 0.05
+        C_expected[:, n:] *= NONLINEAR_SCALE
+
         # Generate bias (a)
         a_expected = np.random.rand(n) * 0.01
 
