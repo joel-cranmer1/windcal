@@ -3,13 +3,14 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from windcal.core.io import CalibrationDataSet
+from windcal.core.io import CalibrationDataSet, ZeroLoadOutput
 
 logger = logging.getLogger(__name__)
 
 
 class CalibrationMathModel(ABC):
     """Abstract base class for all balance calibration math strategies."""
+    zlo = ZeroLoadOutput()
 
     @abstractmethod
     def fit(self, data: CalibrationDataSet) -> np.ndarray:
@@ -166,17 +167,73 @@ class LinearAbsoluteModel(CalibrationMathModel):
 
         return C
 
-    def reduce(self, calibration_matrix: np.ndarray, voltages: np.ndarray) -> np.ndarray:
-        """Calculates physical loads from voltages using the matrix and bias.
-        Assumes the data is already aligned with the calibration matrix.
+    def reduce(self, coefficient_matrix: np.ndarray, voltages: np.ndarray, max_iter: int = 10,
+               tol: float = 1e-3) -> np.ndarray:
+        """
+        Calculates physical loads from voltages using the iterative method
+        from AIAA R-091A-2020, Section 3.5.3.
 
         Args:
-            calibration_matrix: A 6x6 numpy array representing the matrix C.
-            voltages: A numpy array of measured voltages (1D or 2D).
+            coefficient_matrix: The (13, 6) numpy array from the fit() method.
+            voltages: A (p, 6) numpy array of measured voltages.
+            max_iter: The maximum number of iterations to perform.
+            tol: The convergence tolerance for the load vector.
 
         Returns:
-            A numpy array of physical loads (F = C^-1 * (V - B)).
+            A (p, 6) numpy array of the calculated physical loads.
         """
-        c_inv = np.linalg.inv(calibration_matrix)
+        res_flat = False  # Flag to flatten the result
+        # 1. Decompose the coefficient matrix as per the AIAA standard
+        C = coefficient_matrix.T  # This is the (6, 12) calibration matrix
+        C1 = C[:6, :]  # The (6, 6) linear part
+        C2 = C[6:, :]  # The (6, 6) non-linear (absolute value) part
 
-        return (c_inv @ voltages.T).T
+        # Pre-calculate the inverse of the linear matrix, as it's constant
+        try:
+            C1_inv = np.linalg.inv(C1)
+        except np.linalg.LinAlgError as e:
+            logger.error("The linear part of the calibration matrix (C1) is singular and cannot be inverted.")
+            raise e
+
+        # Pre-calculate the combined matrix
+        C1invC2 = C1_inv @ C2
+
+        # Ensure input is 2D for consistent processing
+        if voltages.ndim == 1:
+            res_flat = True
+            voltages = voltages.reshape(1, -1)
+
+        # 2. Perform the iterative calculation for each row of voltage data
+        all_reduced_loads = []
+        for v_row in voltages:
+            # Subtract the ZLO to get delta_R for this data point
+            delta_R = self.zlo.delta_r(v_row)
+
+            # Calculate the constant linear part of the solution
+            F_linear_part = C1_inv @ delta_R
+
+            # Initial guess is the linear-only solution
+            loads_t_minus_1 = F_linear_part
+
+            for i in range(max_iter):
+                H_t_minus_1 = np.abs(loads_t_minus_1)
+
+                # Apply the optimized iterative equation (Eq. 3.3.7)
+                loads_t = F_linear_part - (C1invC2 @ H_t_minus_1)
+
+                if np.linalg.norm(loads_t - loads_t_minus_1) < tol:
+                    break
+                loads_t_minus_1 = loads_t
+                logger.debug(f"try new loads: {loads_t}")
+            else:
+                # This 'else' belongs to the 'for' loop. It runs if the loop completes without a 'break'.
+                logger.warning(f"Reduction did not converge within {max_iter} iterations for voltage row {v_row}.")
+
+            all_reduced_loads.append(loads_t)
+            loads_out = np.array(all_reduced_loads)
+
+            # revert to 1-D array
+            if res_flat:
+                loads_out = loads_out.reshape(-1)
+
+        return loads_out

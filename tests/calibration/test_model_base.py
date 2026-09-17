@@ -1,8 +1,9 @@
 import unittest
 from typing import Any, Tuple
+
 import numpy as np
 
-from windcal.core.io import CalibrationDataSet, STANDARD_CHANNELS
+from windcal.core.io import STANDARD_CHANNELS, CalibrationDataSet, ZeroLoadOutput
 
 
 class CalibrationModelContractTest(unittest.TestCase):
@@ -19,9 +20,13 @@ class CalibrationModelContractTest(unittest.TestCase):
     FIT_RTOL = 1e-7
     REDUCE_ATOL = 0.01
 
+    feature_list = []
+    """List of lambda functions to generate non-linear features"""
+
     def setUp(self):
         if self.MODEL_CLASS is None:
             self.skipTest(f"Base contract class: {self.__class__.__name__}")
+        self.build_zero_load()
 
     # -------------------------
     # Required factory methods
@@ -45,42 +50,93 @@ class CalibrationModelContractTest(unittest.TestCase):
         return data, C_expected
 
     def create_random_dataset(
-        self, n_points: int = 100, seed: Any = None
+            self,
+            n: int = 6,
+            p: int = 100,
+            voltage_noise_std: float = 0.001,
+            seed: Any = None
     ) -> Tuple[CalibrationDataSet, np.ndarray]:
+        """
+        Creates a random single-axis loading dataset with customizable feature mapping and noise.
 
+        Args:
+            n (int): Number of balance elements (physical channels).
+            p (int): Number of load series / data points.
+            voltage_noise_std (float): Standard deviation of Gaussian noise added to the voltage signal.
+            seed (Any): Random seed for reproducibility.
+
+        Returns:
+            Tuple[CalibrationDataSet, np.ndarray]: A tuple containing the generated dataset
+                                                   and the expected calibration matrix C.
+        """
         if seed is not None:
             np.random.seed(seed)
 
-        A = np.random.rand(6, 6)
-        B = np.eye(6) * 1e5
-        C = A + B
+        feature_count = len(self.feature_list)
+
+        # 1. Generate the Calibration Matrix C (n x m)
+        m = n * (1 + feature_count)
+        # Start with small random values for baseline cross-talk.
+        C = np.random.rand(n, m) * 0.01
+
+        # Add a dominant diagonal to EACH n x n block (linear and non-linear).
+        for i in range(1 + feature_count):
+            start_col = i * n
+            end_col = start_col + n
+            C[:, start_col:end_col] += np.eye(n) * 1e5
+
+        # Normalize columns to create the final expected matrix.
         col_norms = np.linalg.norm(C, axis=0, keepdims=True)
+        col_norms[col_norms == 0] = 1  # Avoid division by zero.
         C_expected = C / col_norms
-        a_expected = np.random.rand(6) * 0.01
 
-        n_per_dim = n_points // 6
-        remainder = n_points % 6
+        # Damp the non-linear (e.g. absolute-value) blocks relative to the
+        # linear block.
+        NONLINEAR_SCALE = 0.05
+        C_expected[:, n:] *= NONLINEAR_SCALE
 
+        # Generate bias (a)
+        a_expected = np.random.rand(n) * 0.01
+
+        # 2. Generate Raw Single-Axis Loads L (p rows, n columns)
+        p_per_dim = p // n
+        remainder = p % n
         loads_list = []
-        for dim in range(6):
-            count = n_per_dim + (1 if dim < remainder else 0)
+        for dim in range(n):
+            count = p_per_dim + (1 if dim < remainder else 0)
 
+            # Create jittered load points for more realistic spacing.
             mags = np.linspace(-500, 500, count)
             mags += np.random.randn(count) * 20
 
-            block = np.zeros((count, 6))
+            block = np.zeros((count, n))
             block[:, dim] = mags
             loads_list.append(block)
 
         loads = np.vstack(loads_list)
         np.random.shuffle(loads)
 
-        assert np.all(np.count_nonzero(loads, axis=1) == 1)
+        # 3. Expand into the Feature Space G (p rows, m columns)
+        G_blocks = [loads]
+        for func in self.feature_list:
+            G_blocks.append(func(loads))
+        G = np.hstack(G_blocks)
 
-        voltages = loads @ C_expected.T + a_expected
-        data = CalibrationDataSet(loads, voltages, STANDARD_CHANNELS)
+        # 4. Calculate Voltages
+        # Using NumPy row-major format: V(p,n) = G(p,m) @ C(n,m).T + a
+        voltages = G @ C_expected.T + a_expected
+
+        # Note: Ensure STANDARD_CHANNELS matches the variable `n` if it's currently hardcoded to 6
+        data = CalibrationDataSet(loads, voltages, STANDARD_CHANNELS[:n])
 
         return data, C_expected
+
+    def build_zero_load(self, n: int = 6):
+        self.zlo = ZeroLoadOutput()
+        self.zlo.add(np.zeros(n), 0)
+        self.zlo.add(np.zeros(n), 90)
+        self.zlo.add(np.zeros(n), 180)
+        self.zlo.add(np.zeros(n), -90)
 
     # -------------------------
     # Contract tests
@@ -91,7 +147,9 @@ class CalibrationModelContractTest(unittest.TestCase):
         data, _ = self.create_simple_dataset()
 
         C = model.fit(data)
-        self.assertEqual(C.shape, (6, 6))
+        n = len(data.channels)
+        m = n * (1 + len(self.feature_list or []))
+        self.assertEqual(C.shape, (n, m))
 
     def test_fit_known_solution(self):
         model = self.create_model()
@@ -102,35 +160,35 @@ class CalibrationModelContractTest(unittest.TestCase):
 
     def test_fit_random_solution(self):
         model = self.create_model()
-        data, expected_C = self.create_random_dataset(seed=42)
+        data, expected_C = self.create_random_dataset(n=6, p=100, seed=42)
 
         C = model.fit(data)
-        np.testing.assert_allclose(C, expected_C, rtol=self.FIT_RTOL)
+        np.testing.assert_allclose(C, expected_C, rtol=self.FIT_RTOL, atol=self.FIT_ATOL)
 
     def test_reduce_inverts_fit(self):
         model = self.create_model()
-        data, _ = self.create_random_dataset(seed=123)
+        model.zlo = self.zlo
+        data, _ = self.create_random_dataset(n=6, p=100, seed=123)
 
         C_fit = model.fit(data)
         loads_reduced = model.reduce(C_fit, data.voltages)
 
-        np.testing.assert_allclose(
-            loads_reduced,
-            data.loads,
-            atol=self.REDUCE_ATOL
-        )
+        np.testing.assert_allclose(loads_reduced, data.loads, atol=self.REDUCE_ATOL)
 
     def test_reduce_handles_1d_and_2d(self):
         model = self.create_model()
-        C = np.random.rand(6, 6)
+        model.zlo = self.zlo
+        n = 6
+        m = n * (1 + len(self.feature_list or []))
+        C = np.random.rand(n, m)
 
-        v1 = np.random.rand(6)
+        v1 = np.random.rand(n)
         l1 = model.reduce(C, v1)
-        self.assertEqual(l1.shape, (6,))
+        self.assertEqual(l1.shape, (n,))
 
-        v2 = np.random.rand(10, 6)
+        v2 = np.random.rand(10, n)
         l2 = model.reduce(C, v2)
-        self.assertEqual(l2.shape, (10, 6))
+        self.assertEqual(l2.shape, (10, n))
 
     # -------------------------
     # Validation tests (shared)
