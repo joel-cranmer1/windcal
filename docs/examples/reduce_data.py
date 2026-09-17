@@ -1,4 +1,5 @@
 import logging
+
 from windcal.core.artifact import BalanceCalibration
 from windcal.reduction.reducer import DataReducer
 

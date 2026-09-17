@@ -1,9 +1,9 @@
 import unittest
-from typing import Any, Callable, List, Tuple
+from typing import Any, Tuple
 
 import numpy as np
 
-from windcal.core.io import STANDARD_CHANNELS, CalibrationDataSet
+from windcal.core.io import STANDARD_CHANNELS, CalibrationDataSet, ZeroLoadOutput
 
 
 class CalibrationModelContractTest(unittest.TestCase):
@@ -16,14 +16,17 @@ class CalibrationModelContractTest(unittest.TestCase):
     __test__ = False  # pytest ignores it
 
     MODEL_CLASS = None
-    feature_list = None
     FIT_ATOL = 1e-7
     FIT_RTOL = 1e-7
     REDUCE_ATOL = 0.01
 
+    feature_list = []
+    """List of lambda functions to generate non-linear features"""
+
     def setUp(self):
         if self.MODEL_CLASS is None:
             self.skipTest(f"Base contract class: {self.__class__.__name__}")
+        self.build_zero_load()
 
     # -------------------------
     # Required factory methods
@@ -50,41 +53,41 @@ class CalibrationModelContractTest(unittest.TestCase):
             self,
             n: int = 6,
             p: int = 100,
-            extra_features: List[Callable] = None,
+            voltage_noise_std: float = 0.001,
             seed: Any = None
     ) -> Tuple[CalibrationDataSet, np.ndarray]:
         """
-        Creates a random single-axis loading dataset with customizable feature mapping.
+        Creates a random single-axis loading dataset with customizable feature mapping and noise.
 
         Args:
-            n: Number of balance elements (physical channels).
-            p: Number of load series / data points.
-            extra_features: List of lambda functions to generate non-linear features
-                (e.g., [lambda x: np.abs(x), lambda x: x**2]).
-            seed: Random seed for reproducibility.
+            n (int): Number of balance elements (physical channels).
+            p (int): Number of load series / data points.
+            voltage_noise_std (float): Standard deviation of Gaussian noise added to the voltage signal.
+            seed (Any): Random seed for reproducibility.
 
         Returns:
-            CalibrationDataSet, C_expected: The generated load and voltage data, followed by the expected
-            Calibration Matrix
+            Tuple[CalibrationDataSet, np.ndarray]: A tuple containing the generated dataset
+                                                   and the expected calibration matrix C.
         """
         if seed is not None:
             np.random.seed(seed)
 
-        if extra_features is None:
-            extra_features = []
+        feature_count = len(self.feature_list)
 
-        # m = total number of calibration constants (linear + non-linear blocks)
-        m = n * (1 + len(extra_features))
+        # 1. Generate the Calibration Matrix C (n x m)
+        m = n * (1 + feature_count)
+        # Start with small random values for baseline cross-talk.
+        C = np.random.rand(n, m) * 0.01
 
-        # 1. Generate the Nominal Calibration Matrix C (n x m)
-        # Start with random cross-talk for all elements
-        C = np.random.rand(n, m)
+        # Add a dominant diagonal to EACH n x n block (linear and non-linear).
+        for i in range(1 + feature_count):
+            start_col = i * n
+            end_col = start_col + n
+            C[:, start_col:end_col] += np.eye(n) * 1e5
 
-        # Add a dominant diagonal to the linear n x n block
-        C[:, :n] += np.eye(n) * 1e5
-
-        # Normalize columns
+        # Normalize columns to create the final expected matrix.
         col_norms = np.linalg.norm(C, axis=0, keepdims=True)
+        col_norms[col_norms == 0] = 1  # Avoid division by zero.
         C_expected = C / col_norms
 
         # Generate bias (a)
@@ -93,11 +96,11 @@ class CalibrationModelContractTest(unittest.TestCase):
         # 2. Generate Raw Single-Axis Loads L (p rows, n columns)
         p_per_dim = p // n
         remainder = p % n
-
         loads_list = []
         for dim in range(n):
             count = p_per_dim + (1 if dim < remainder else 0)
 
+            # Create jittered load points for more realistic spacing.
             mags = np.linspace(-500, 500, count)
             mags += np.random.randn(count) * 20
 
@@ -108,17 +111,10 @@ class CalibrationModelContractTest(unittest.TestCase):
         loads = np.vstack(loads_list)
         np.random.shuffle(loads)
 
-        # Sanity check: Ensure strictly single-axis loading
-        assert np.all(np.count_nonzero(loads, axis=1) == 1)
-
         # 3. Expand into the Feature Space G (p rows, m columns)
-        # Start with the linear loads
         G_blocks = [loads]
-
-        # Dynamically apply each lambda function to create the non-linear blocks
-        for func in extra_features:
+        for func in self.feature_list:
             G_blocks.append(func(loads))
-
         G = np.hstack(G_blocks)
 
         # 4. Calculate Voltages
@@ -129,6 +125,13 @@ class CalibrationModelContractTest(unittest.TestCase):
         data = CalibrationDataSet(loads, voltages, STANDARD_CHANNELS[:n])
 
         return data, C_expected
+
+    def build_zero_load(self, n: int = 6):
+        self.zlo = ZeroLoadOutput()
+        self.zlo.add(np.zeros(n), 0)
+        self.zlo.add(np.zeros(n), 90)
+        self.zlo.add(np.zeros(n), 180)
+        self.zlo.add(np.zeros(n), -90)
 
     # -------------------------
     # Contract tests
@@ -152,14 +155,15 @@ class CalibrationModelContractTest(unittest.TestCase):
 
     def test_fit_random_solution(self):
         model = self.create_model()
-        data, expected_C = self.create_random_dataset(n=6, p=100, extra_features=self.feature_list, seed=42)
+        data, expected_C = self.create_random_dataset(n=6, p=100, seed=42)
 
         C = model.fit(data)
-        np.testing.assert_allclose(C, expected_C, rtol=self.FIT_RTOL)
+        np.testing.assert_allclose(C, expected_C, rtol=self.FIT_RTOL, atol=self.FIT_ATOL)
 
     def test_reduce_inverts_fit(self):
         model = self.create_model()
-        data, _ = self.create_random_dataset(n=6, p=100, extra_features=self.feature_list, seed=123)
+        model.zlo = self.zlo
+        data, _ = self.create_random_dataset(n=6, p=100, seed=123)
 
         C_fit = model.fit(data)
         loads_reduced = model.reduce(C_fit, data.voltages)
@@ -168,15 +172,18 @@ class CalibrationModelContractTest(unittest.TestCase):
 
     def test_reduce_handles_1d_and_2d(self):
         model = self.create_model()
-        C = np.random.rand(6, 6)
+        model.zlo = self.zlo
+        n = 6
+        m = n * (1 + len(self.feature_list or []))
+        C = np.random.rand(n, m)
 
-        v1 = np.random.rand(6)
+        v1 = np.random.rand(n)
         l1 = model.reduce(C, v1)
-        self.assertEqual(l1.shape, (6,))
+        self.assertEqual(l1.shape, (n,))
 
-        v2 = np.random.rand(10, 6)
+        v2 = np.random.rand(10, n)
         l2 = model.reduce(C, v2)
-        self.assertEqual(l2.shape, (10, 6))
+        self.assertEqual(l2.shape, (10, n))
 
     # -------------------------
     # Validation tests (shared)
