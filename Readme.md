@@ -54,7 +54,7 @@ python -m unittest discover
 ## Roadmap
 
 - [x] Implement Linear Model
-- [ ] Implement Linear with absolute value Model
+- [x] Implement Linear with absolute value Model
 - [ ] Implement polynomial model
 - [ ] Implement aerodynamic coefficent reduction procedure
     - [ ] Collect Geometry Data
@@ -62,6 +62,8 @@ python -m unittest discover
 
 ## Release History
 
+- 0.2.0
+    - Add Linear with absolute value Model
 - 0.1.0
     - Initial Work in progress.
 
