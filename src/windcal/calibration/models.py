@@ -182,6 +182,9 @@ class LinearAbsoluteModel(CalibrationMathModel):
         Returns:
             A (p, 6) numpy array of the calculated physical loads.
         """
+        logger.debug(f"Reducing...")
+        logger.debug(f"Input: {voltages}")
+
         res_flat = False  # Flag to flatten the result
         # 1. Decompose the coefficient matrix as per the AIAA standard
         C = coefficient_matrix.T  # This is the (6, 12) calibration matrix
@@ -224,7 +227,7 @@ class LinearAbsoluteModel(CalibrationMathModel):
                 if np.linalg.norm(loads_t - loads_t_minus_1) < tol:
                     break
                 loads_t_minus_1 = loads_t
-                logger.debug(f"try new loads: {loads_t}")
+                logger.debug(f"\ttry new loads: {loads_t}")
             else:
                 # This 'else' belongs to the 'for' loop. It runs if the loop completes without a 'break'.
                 logger.warning(f"Reduction did not converge within {max_iter} iterations for voltage row {v_row}.")
